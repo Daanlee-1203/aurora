@@ -1,0 +1,21 @@
+industry,stage_seq,stage_code,stage_name,equipment_id,equipment_name,chamber_id,param_name,target_value,tolerance_half_width,usl,lsl,temp_nominal_c,press_nominal_mtorr,rf_power_nominal_w,gas_nominal_sccm,cycle_time_nominal_sec,representative_defect_mode
+SEMICONDUCTOR,1,CLN,세정,EQ_SEMI_01,웨이퍼 고순도 세정조,CH_CLN_01,파티클 잔류 밀도 (ea/cm²),0.05,0.03,0.08,0.020000000000000004,25,760,0,500,59,세정 불균일 및 규격 이탈
+SEMICONDUCTOR,2,ANN,열처리,EQ_SEMI_02,종형 급속 열처리로(RTP),CH_ANN_01,산화막 두께 (nm),45.0,2.5,47.5,42.5,950,750,1200,2000,48,열처리 불균일 및 규격 이탈
+SEMICONDUCTOR,3,DEP,증착,EQ_SEMI_03,PECVD 플라즈마 증착기,CH_DEP_01,박막 증착 균일도 (%),98.5,1.2,99.7,97.3,400,2.5,2500,1500,80,증착 불균일 및 규격 이탈
+SEMICONDUCTOR,4,PHO,포토,EQ_SEMI_04,EUV/ArF 노광 스캐너,CH_PHO_01,선폭(CD) 임계치수 (nm),14.0,0.8,14.8,13.2,23,760,800,100,76,포토 불균일 및 규격 이탈
+SEMICONDUCTOR,5,ETC,식각,EQ_SEMI_05,ICP 고밀도 플라즈마 식각기,CH_ETC_01,식각 깊이 (nm),220.0,12.0,232.0,208.0,65,15.0,3200,800,73,식각 불균일 및 규격 이탈
+SEMICONDUCTOR,6,IMP,이온주입,EQ_SEMI_06,고전류 이온주입기,CH_IMP_01,도핑 면저항 (ohm/sq),85.0,4.5,89.5,80.5,28,0.005,4500,50,62,이온주입 불균일 및 규격 이탈
+SEMICONDUCTOR,7,CMP,CMP,EQ_SEMI_07,화학기계적 연마기(CMP),CH_CMP_01,잔류 단차 조도 (A),12.0,2.0,14.0,10.0,32,3.5,1500,200,58,CMP 불균일 및 규격 이탈
+SEMICONDUCTOR,8,DIC,박막화·절단,EQ_SEMI_08,정밀 레이저 다이싱기,CH_DIC_01,커프 폭 편차 (um),18.0,1.5,19.5,16.5,24,760,600,300,114,박막화·절단 불균일 및 규격 이탈
+SEMICONDUCTOR,9,PKG,패키징,EQ_SEMI_09,플립칩 고속 본더,CH_PKG_01,볼 본딩 접합강도 (gf),65.0,4.0,69.0,61.0,180,760,950,400,56,패키징 불균일 및 규격 이탈
+SEMICONDUCTOR,10,EDS,전기검사,EQ_SEMI_10,초정밀 자동 웨이퍼 테스터(ATE),CH_EDS_01,동작 전압 편차 (mV),1200.0,35.0,1235.0,1165.0,25,760,500,100,120,전기검사 불균일 및 규격 이탈
+OLED,1,SCL,기판세정,EQ_OLED_01,대형 글래스 정밀 초음파 세정기,CH_SCL_01,유기 오염 잔류도 (deg),5.0,1.5,6.5,3.5,45,760,400,800,94,기판세정 박리 및 치수 변형
+OLED,2,TDEP,TFT 증착,EQ_OLED_02,TFT 인라인 스퍼터링기,CH_TDEP_01,IGZO 채널 두께 (nm),50.0,3.0,53.0,47.0,280,1.2,3800,1200,44,TFT 증착 박리 및 치수 변형
+OLED,3,TPHO,TFT 포토,EQ_OLED_03,대면적 TFT 프로젝션 노광기,CH_TPHO_01,TFT 게이트 선폭 (um),2.5,0.2,2.7,2.3,22,760,1100,150,43,TFT 포토 박리 및 치수 변형
+OLED,4,TETC,TFT 식각,EQ_OLED_04,대형 건식 에처(Dry Etcher),CH_TETC_01,테이퍼 각도 (deg),55.0,3.5,58.5,51.5,55,20.0,2900,900,51,TFT 식각 박리 및 치수 변형
+OLED,5,OEV,OLED 증착,EQ_OLED_05,진공 열증착기(FMM Evaporator),CH_OEV_01,발광층 유기물 두께 (A),350.0,18.0,368.0,332.0,320,0.0001,4200,20,67,OLED 증착 박리 및 치수 변형
+OLED,6,ENC,봉지,EQ_OLED_06,TFE 무기/유기 박막 봉지기,CH_ENC_01,수분투과율(WVTR) (g/m²/day),1e-05,5e-06,1.5000000000000002e-05,5e-06,80,0.5,1800,450,69,봉지 박리 및 치수 변형
+OLED,7,ELT,발광검사,EQ_OLED_07,고해상도 광학 EL 에이징 검사기,CH_ELT_01,휘도 균일도 (%),95.0,2.0,97.0,93.0,24,760,650,100,104,발광검사 박리 및 치수 변형
+OLED,8,CUT,절단·분리,EQ_OLED_08,울트라패스트 레이저 셀 절단기,CH_CUT_01,셀 절단 치수 공차 (um),10.0,1.2,11.2,8.8,23,760,850,350,43,절단·분리 박리 및 치수 변형
+OLED,9,BND,구동부 접합,EQ_OLED_09,COP/COG 정밀 본딩기,CH_BND_01,범프 압흔 단자 저항 (mohm),45.0,3.8,48.8,41.2,195,4.2,1200,300,65,구동부 접합 박리 및 치수 변형
+OLED,10,MOD,모듈 조립·검사,EQ_OLED_10,최종 완성 패널 비전 검사기,CH_MOD_01,색좌표 편차 deltaE,1.2,0.35,1.5499999999999998,0.85,25,760,550,100,109,모듈 조립·검사 박리 및 치수 변형

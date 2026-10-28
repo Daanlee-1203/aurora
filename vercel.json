@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/", "destination": "/dist/index.html" },
+    { "source": "/api/metrics", "destination": "/dist/model_metrics.json" }
+  ]
+}
