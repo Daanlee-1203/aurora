@@ -37,8 +37,8 @@
 
         <div class="header-right-tools">
             <select id="industrySelect" class="role-badge-select">
-                <option value="SEMICONDUCTOR">반도체 제조 (평택 제1공장 1호 라인)</option>
-                <option value="OLED">OLED 디스플레이 (아산 제2공장 2호 라인)</option>
+                <option value="SEMICONDUCTOR">반도체 (평택 제1공장 1호 라인)</option>
+                <option value="OLED">OLED (아산 제2공장 2호 라인)</option>
             </select>
 
             <select id="roleSelect" class="role-badge-select">
@@ -57,16 +57,16 @@
     <!-- 2. 실행 컨텍스트 바 (PRD ADD-02 P0) -->
     <section class="context-bar">
         <div class="context-item-group">
-            <span class="context-tag">운영 조직: <strong>써니웨이브텍 / 스마트제조추진본부</strong></span>
+            <span class="context-tag">운영 조직: <strong>써니웨이브텍 / 스마트제조</strong></span>
             <span class="context-tag">적용 공정: <strong id="contextIndustryTag">반도체</strong> (<span id="contextLineTag">평택 제1공장 1호 라인</span>)</span>
             <span class="context-tag">가상 기준일자: <strong id="contextDateTag">2027년 01월 01일</strong></span>
             <span class="context-tag">데이터 버전: <strong>제1판(합성원장)</strong></span>
-            <span class="context-tag">운영 AI 모델: <strong>제2판(가중 앙상블 모델)</strong></span>
+            <span class="context-tag">운영 모델: <strong>제2판(가중 앙상블)</strong></span>
         </div>
         <div class="context-item-group">
             <div class="comm-status-indicator">
                 <div class="comm-pulse-dot"></div>
-                금속 표면파 센서 통신 버스: 정상 수신 중 (지연시간 12.4ms · 패킷 손실률 0.04%)
+                금속 표면파 센서 통신 버스: 정상 수신 중 (지연 12.4ms · 손실률 0.04%)
             </div>
         </div>
     </section>
@@ -133,20 +133,20 @@
                             </div>
                         </div>
 
-                        <!-- 10대 설비 스트립 -->
-                        <div class="equipment-grid-strip">
-                            <!-- 이송 레일 -->
+                        <!-- 10대 설비 통합 래퍼 (레일 + 카드 + 센서버스) -->
+                        <div class="equipment-stage-wrapper">
+                            <!-- 상부 이송 레일 -->
                             <div class="transfer-rail-line"></div>
-                            <div id="transferLotCarrier" class="transfer-lot-carrier" style="left: 40px;" title="웨이퍼 로트(FOUP) 이송 중"></div>
+                            <div id="transferLotCarrier" class="transfer-lot-carrier" style="left: 20px;" title="웨이퍼 로트(FOUP) 이송 중"></div>
 
-                            <!-- 설비 노드 카드 컨테이너 -->
-                            <div id="equipmentGridStrip" style="display:contents;">
+                            <!-- 설비 노드 카드 10개 컨테이너 -->
+                            <div id="equipmentGridStrip" class="equipment-grid-strip">
                                 <!-- JS 동적 렌더링 -->
                             </div>
 
-                            <!-- 센서 데이터 버스 -->
+                            <!-- 하부 센서 데이터 버스 -->
                             <div class="sensor-data-bus"></div>
-                            <div class="data-packet-token" style="left: 120px;" title="센서 텔레메트리 데이터 패킷"></div>
+                            <div class="data-packet-token" style="left: 100px;" title="센서 텔레메트리 데이터 패킷"></div>
                         </div>
                     </div>
 

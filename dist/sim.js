@@ -63,16 +63,29 @@
         ]
     };
 
-    // 2. 초기화 함수
-    async function initApp() {
-        setupEventListeners();
-        setupRightDockTools();
-        await loadMetrics();
-        await loadProfiles();
-        renderWorkspace();
-        updateDateDisplay();
-        updateEquipmentDisplay();
-        updateKpis();
+    // 2. 초기화 함수 (즉시 동기 렌더링 + 백그라운드 데이터 로드)
+    function initApp() {
+        try {
+            setupEventListeners();
+            setupRightDockTools();
+
+            // 1단계: 네트워크 지연 없이 즉시 화면 렌더링!
+            updateDateDisplay();
+            updateEquipmentDisplay();
+            updateKpis();
+            renderWorkspace();
+
+            // 2단계: 백그라운드 데이터 비동기 로드
+            loadMetrics().then(() => {
+                if (state.activeWorkspace === 'lab') renderLabBenchmarkSection();
+            }).catch(e => console.warn("메트릭스 비동기 로드 안내:", e));
+
+            loadProfiles().then(() => {
+                if (state.activeWorkspace === 'lab') renderLabDiagnosticSection();
+            }).catch(e => console.warn("프로파일 비동기 로드 안내:", e));
+        } catch (err) {
+            console.error("초기화 중 오류 발생:", err);
+        }
     }
 
     // 3. 메트릭스 및 프로파일 로드
@@ -528,9 +541,15 @@
 
     function triggerLotCarrierAnimation() {
         const carrier = document.getElementById('transferLotCarrier');
-        if (!carrier) return;
-        const pct = ((state.simDayOfYear % 10) / 10) * 100;
-        carrier.style.left = `calc(40px + ${pct}% * 0.85)`;
+        if (carrier) {
+            const pct = ((state.simDayOfYear % 10) / 10) * 100;
+            carrier.style.left = `calc(20px + ${pct}% * 0.92)`;
+        }
+        const packet = document.querySelector('.data-packet-token');
+        if (packet) {
+            const pktPct = ((state.simDayOfYear * 7) % 100);
+            packet.style.left = `calc(20px + ${pktPct}% * 0.92)`;
+        }
     }
 
     function updateKpis() {
@@ -1030,5 +1049,10 @@
         initApp
     };
 
-    document.addEventListener('DOMContentLoaded', initApp);
+    // 즉시 실행 또는 DOM 완료 시 실행
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initApp);
+    } else {
+        initApp();
+    }
 })();
