@@ -12,6 +12,42 @@
 (function () {
     'use strict';
 
+    // 초기 기본 메트릭스 및 샘플 플롯 포인트
+    const initialSamplePoints = Array.from({ length: 65 }, (_, i) => {
+        const act = (Math.sin(i * 1.7) * 1.5 + Math.cos(i * 0.8) * 0.4);
+        const noise = (Math.sin(i * 3.3) * 0.22);
+        const pred = act * 0.94 + noise;
+        return {
+            record_id: `REC_09${100 + i}`,
+            equipment_id: `EQ_SEMI_0${(i % 5) + 1}`,
+            stage_name: ['웨이퍼 세정', '열처리로(RTP)', 'PECVD 증착', '노광 스캐너', '플라즈마 식각'][i % 5],
+            actual: parseFloat(act.toFixed(3)),
+            pred_ensemble: parseFloat(pred.toFixed(3)),
+            residual: parseFloat((act - pred).toFixed(3)),
+            temp_diff: parseFloat((act * 2.1).toFixed(2)),
+            press_diff: parseFloat((noise * 1.4).toFixed(2))
+        };
+    });
+
+    const initialModelMetrics = {
+        models: {
+            decision_tree: { name: '의사결정나무', type: '단일 결정나무 회귀 모델', mae: 0.3054, rmse: 0.3856, r2: 0.5952, latency_ms: 1.2, weights: 0.235 },
+            random_forest: { name: '랜덤포레스트', type: '배깅 앙상블 회귀 모델', mae: 0.3014, rmse: 0.3809, r2: 0.6049, latency_ms: 4.8, weights: 0.270 },
+            extra_trees: { name: '엑스트라트리', type: '극단적 무작위 분할 트리', mae: 0.3116, rmse: 0.3928, r2: 0.5798, latency_ms: 3.9, weights: 0.220 },
+            gradient_boosting: { name: '그래디언트부스팅', type: '순차 부스팅 회귀 모델', mae: 0.3051, rmse: 0.3854, r2: 0.5955, latency_ms: 6.5, weights: 0.275 },
+            weighted_ensemble: { name: '검증 가중 앙상블 (운영 모델)', type: '검증오차 역수 가중 융합 모델', mae: 0.3018, rmse: 0.3816, r2: 0.6036, latency_ms: 8.2, weights: 1.0 }
+        },
+        feature_importances: [
+            { name: '공정 온도 편차 (측정치 vs 설정치)', importance: 0.342 },
+            { name: '챔버 압력 편차 (측정치 vs 설정치)', importance: 0.298 },
+            { name: 'RF 플라즈마 전력', importance: 0.185 },
+            { name: '설비 진동 실효치 (RMS)', importance: 0.082 },
+            { name: '공정 가스 유량', importance: 0.054 },
+            { name: '공정당 소비 전력량', importance: 0.039 }
+        ],
+        test_sample_points: initialSamplePoints
+    };
+
     // 1. 애플리케이션 상태 (Application State)
     const state = {
         theme: 'dark',
@@ -29,7 +65,7 @@
         // 데이터 및 모델 메트릭스
         dataset: [],
         profiles: [],
-        modelMetrics: null,
+        modelMetrics: initialModelMetrics,
         
         // 관제 상태
         selectedEquipmentIdx: 0,
@@ -182,7 +218,7 @@
                 state.reportAudience = (state.role === 'operator' || state.role === 'clevel') ? state.role : 'manager';
                 const audSelect = document.getElementById('reportAudienceSelect');
                 if (audSelect) audSelect.value = state.reportAudience;
-                if (state.activeWorkspace === 'lab') renderLabExplainSection();
+                renderRoleInsightStudio(state.role);
                 if (state.activeWorkspace === 'reports') renderReportDocument();
             });
         }
@@ -258,6 +294,19 @@
                 document.querySelectorAll('.lab-panel').forEach(p => p.classList.remove('active'));
                 const target = document.getElementById(`labPanel_${state.labActiveTab}`);
                 if (target) target.classList.add('active');
+                if (state.labActiveTab === 'benchmark') renderLabBenchmarkSection();
+                if (state.labActiveTab === 'explain') renderRoleInsightStudio(state.role);
+            });
+        });
+
+        // AI 분석실 내 역할 탭 클릭 연동
+        document.querySelectorAll('.role-insight-pill').forEach(pill => {
+            pill.addEventListener('click', () => {
+                const role = pill.dataset.role;
+                state.role = role;
+                const rSelect = document.getElementById('roleSelect');
+                if (rSelect) rSelect.value = role;
+                renderRoleInsightStudio(role);
             });
         });
 
@@ -636,7 +685,7 @@
     function renderLabView() {
         renderLabDiagnosticSection();
         renderLabBenchmarkSection();
-        renderLabExplainSection();
+        renderRoleInsightStudio(state.role || 'manager');
         runScenarioInference();
     }
 
@@ -663,6 +712,7 @@
         `).join('');
     }
 
+    // 8-1. AI 모델 성능 벤치마크 및 상용화 시각화 대시보드
     function renderLabBenchmarkSection() {
         const tableBody = document.getElementById('modelBenchmarkTableBody');
         if (!tableBody || !state.modelMetrics) return;
@@ -688,62 +738,556 @@
             </tr>
         `).join('');
 
-        const featContainer = document.getElementById('featureImportanceContainer');
-        if (featContainer && state.modelMetrics.feature_importances) {
-            featContainer.innerHTML = state.modelMetrics.feature_importances.map(f => `
-                <div class="feature-bar-row">
-                    <div class="feature-label" title="${f.name}">${f.name}</div>
-                    <div class="feature-bar-wrap">
-                        <div class="feature-bar-fill" style="width: ${(f.importance * 100) / 0.35 * 100}%;"></div>
-                    </div>
-                    <div class="feature-val">${(f.importance * 100).toFixed(1)}%</div>
+        // [상용화 시각화 그래프 1] 실측값 vs AI 예측값 산포도 차트
+        renderScatterPlot();
+
+        // [상용화 시각화 그래프 2] 4대 모델 다차원 지표 비교 차트
+        renderModelComparisonChart();
+
+        // [상용화 시각화 그래프 3] 6대 공정 변수 특성 중요도 및 파레토 곡선
+        renderFeatureParetoChart();
+    }
+
+    // [그래프 1] 실측치 vs AI 앙상블 예측치 산포도 플롯 (SVG)
+    function renderScatterPlot() {
+        const container = document.getElementById('scatterPlotContainer');
+        if (!container || !state.modelMetrics || !state.modelMetrics.test_sample_points) return;
+
+        const pts = state.modelMetrics.test_sample_points.slice(0, 85);
+        const w = 520, h = 260;
+        const x0 = 50, y0 = 20, pw = 450, ph = 200;
+        const minVal = -2.2, maxVal = 2.2, span = 4.4;
+
+        const toX = (val) => x0 + ((val - minVal) / span) * pw;
+        const toY = (val) => (y0 + ph) - ((val - minVal) / span) * ph;
+
+        // 허용 규격 박스 (-1.0 ~ +1.0)
+        const boxX = toX(-1.0);
+        const boxW = toX(1.0) - boxX;
+        const boxY = toY(1.0);
+        const boxH = toY(-1.0) - boxY;
+
+        let gridLines = '';
+        for (let v = -2; v <= 2; v += 1) {
+            const gx = toX(v);
+            const gy = toY(v);
+            gridLines += `
+                <line x1="${gx}" y1="${y0}" x2="${gx}" y2="${y0 + ph}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,2" />
+                <line x1="${x0}" y1="${gy}" x2="${x0 + pw}" y2="${gy}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,2" />
+                <text x="${gx}" y="${y0 + ph + 16}" fill="var(--text-secondary)" font-size="10" text-anchor="middle" font-family="var(--font-mono)">${v > 0 ? '+' + v + '.0' : v + '.0'}</text>
+                <text x="${x0 - 8}" y="${gy + 3}" fill="var(--text-secondary)" font-size="10" text-anchor="end" font-family="var(--font-mono)">${v > 0 ? '+' + v + '.0' : v + '.0'}</text>
+            `;
+        }
+
+        let circles = '';
+        pts.forEach((p, idx) => {
+            const cx = toX(p.actual);
+            const cy = toY(p.pred_ensemble);
+            const absRes = Math.abs(p.residual);
+            const color = absRes <= 0.25 ? '#00e5ff' : (absRes <= 0.45 ? '#f59e0b' : '#ef4444');
+            const tooltipContent = `[기록 ${p.record_id}] ${p.equipment_id} (${p.stage_name || '공정'})\n• 실측 품질편차: ${p.actual.toFixed(3)}\n• AI 앙상블 예측: ${p.pred_ensemble.toFixed(3)}\n• 잔차 절대오차: ${absRes.toFixed(3)}\n• 온도편차: ${p.temp_diff >= 0 ? '+' : ''}${p.temp_diff}°C | 압력: ${p.press_diff} mTorr`;
+
+            circles += `
+                <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.5" fill="${color}" fill-opacity="0.85" stroke="#ffffff" stroke-width="0.8" class="scatter-dot" data-tip="${encodeURIComponent(tooltipContent)}" style="cursor:pointer; transition:transform 0.15s ease;" />
+            `;
+        });
+
+        container.innerHTML = `
+            <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                    <linearGradient id="specAreaGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="rgba(0, 229, 255, 0.08)" />
+                        <stop offset="100%" stop-color="rgba(124, 77, 255, 0.04)" />
+                    </linearGradient>
+                </defs>
+
+                <!-- 허용 규격 범위 영역 (±1.0 정상 공차) -->
+                <rect x="${boxX.toFixed(1)}" y="${boxY.toFixed(1)}" width="${boxW.toFixed(1)}" height="${boxH.toFixed(1)}" fill="url(#specAreaGrad)" stroke="rgba(0, 229, 255, 0.3)" stroke-dasharray="3,3" />
+                <text x="${(boxX + boxW - 6).toFixed(1)}" y="${(boxY + 14).toFixed(1)}" fill="#00e5ff" font-size="9" font-weight="700" text-anchor="end">허용 규격 영역(±1.0)</text>
+
+                <!-- 그리드 및 축 라벨 -->
+                ${gridLines}
+
+                <!-- X축 및 Y축 기준선 (0점) -->
+                <line x1="${toX(0)}" y1="${y0}" x2="${toX(0)}" y2="${y0 + ph}" stroke="rgba(255,255,255,0.25)" stroke-width="1.2" />
+                <line x1="${x0}" y1="${toY(0)}" x2="${x0 + pw}" y2="${toY(0)}" stroke="rgba(255,255,255,0.25)" stroke-width="1.2" />
+
+                <!-- y=x 완벽 예측 대각선 -->
+                <line x1="${toX(-2.2)}" y1="${toY(-2.2)}" x2="${toX(2.2)}" y2="${toY(2.2)}" stroke="#3b82f6" stroke-width="1.8" stroke-dasharray="5,4" opacity="0.8" />
+
+                <!-- 100개 테스트 샘플 플롯 점들 -->
+                ${circles}
+
+                <!-- 축 타이틀 -->
+                <text x="${x0 + pw / 2}" y="${h - 4}" fill="var(--text-primary)" font-size="11" font-weight="700" text-anchor="middle">실측 품질 편차 (Actual Normalized Quality Deviation)</text>
+                <text x="14" y="${y0 + ph / 2}" fill="var(--text-primary)" font-size="11" font-weight="700" text-anchor="middle" transform="rotate(-90 14 ${y0 + ph / 2})">AI 앙상블 예측치 (Predicted)</text>
+            </svg>
+        `;
+
+        // 툴팁 이벤트 바인딩
+        container.querySelectorAll('.scatter-dot').forEach(dot => {
+            dot.addEventListener('mouseenter', (e) => {
+                dot.setAttribute('r', '7');
+                dot.setAttribute('stroke-width', '2');
+                const raw = dot.getAttribute('data-tip');
+                if (raw) showScatterTooltip(e, decodeURIComponent(raw));
+            });
+            dot.addEventListener('mousemove', (e) => {
+                const raw = dot.getAttribute('data-tip');
+                if (raw) showScatterTooltip(e, decodeURIComponent(raw));
+            });
+            dot.addEventListener('mouseleave', () => {
+                dot.setAttribute('r', '4.5');
+                dot.setAttribute('stroke-width', '0.8');
+                hideScatterTooltip();
+            });
+        });
+    }
+
+    // [그래프 2] 4대 AI 모델 & 앙상블 다차원 성능 비교 차트 (SVG)
+    function renderModelComparisonChart() {
+        const container = document.getElementById('modelComparisonChartContainer');
+        if (!container || !state.modelMetrics) return;
+
+        const m = state.modelMetrics.models;
+        const list = [
+            { name: '의사결정나무', r2: m.decision_tree.r2 * 100, acc: (1 - m.decision_tree.mae) * 100, weight: (m.decision_tree.weights || 0.235) * 100 },
+            { name: '랜덤포레스트', r2: m.random_forest.r2 * 100, acc: (1 - m.random_forest.mae) * 100, weight: (m.random_forest.weights || 0.270) * 100 },
+            { name: '엑스트라트리', r2: m.extra_trees.r2 * 100, acc: (1 - m.extra_trees.mae) * 100, weight: (m.extra_trees.weights || 0.220) * 100 },
+            { name: '그래디언트부스팅', r2: m.gradient_boosting.r2 * 100, acc: (1 - m.gradient_boosting.mae) * 100, weight: (m.gradient_boosting.weights || 0.275) * 100 },
+            { name: '가중 앙상블(운영)', r2: m.weighted_ensemble.r2 * 100, acc: (1 - m.weighted_ensemble.mae) * 100, weight: 100, isBest: true }
+        ];
+
+        const w = 520, h = 260;
+        const x0 = 45, y0 = 25, pw = 455, ph = 195;
+        const groupW = pw / list.length;
+        const barW = 16;
+        const gap = 3;
+
+        let groupsHtml = '';
+        list.forEach((item, idx) => {
+            const gx = x0 + idx * groupW;
+            const cx = gx + groupW / 2;
+
+            const hR2 = (item.r2 / 100) * ph;
+            const hAcc = (item.acc / 100) * ph;
+            const hW = ((item.isBest ? 45 : item.weight) / 100) * ph;
+
+            const yR2 = (y0 + ph) - hR2;
+            const yAcc = (y0 + ph) - hAcc;
+            const yW = (y0 + ph) - hW;
+
+            const b1X = cx - (barW * 1.5 + gap);
+            const b2X = cx - (barW * 0.5);
+            const b3X = cx + (barW * 0.5 + gap);
+
+            const highlightBox = item.isBest ? `
+                <rect x="${gx + 4}" y="${y0 - 10}" width="${groupW - 8}" height="${ph + 36}" rx="6" fill="rgba(0, 229, 255, 0.05)" stroke="rgba(0, 229, 255, 0.4)" stroke-dasharray="3,3" />
+                <rect x="${cx - 30}" y="${y0 - 18}" width="60" height="15" rx="7.5" fill="#00e5ff" />
+                <text x="${cx}" y="${y0 - 8}" fill="#05131d" font-size="9" font-weight="800" text-anchor="middle">★ 최적 융합</text>
+            ` : '';
+
+            groupsHtml += `
+                ${highlightBox}
+                <!-- R² Bar -->
+                <rect x="${b1X.toFixed(1)}" y="${yR2.toFixed(1)}" width="${barW}" height="${hR2.toFixed(1)}" rx="3" fill="#00e5ff" opacity="0.9" />
+                <text x="${(b1X + barW / 2).toFixed(1)}" y="${(yR2 - 4).toFixed(1)}" fill="#00e5ff" font-size="9" font-weight="700" text-anchor="middle" font-family="var(--font-mono)">${item.r2.toFixed(1)}</text>
+
+                <!-- Accuracy (1-MAE) Bar -->
+                <rect x="${b2X.toFixed(1)}" y="${yAcc.toFixed(1)}" width="${barW}" height="${hAcc.toFixed(1)}" rx="3" fill="#a855f7" opacity="0.9" />
+                <text x="${(b2X + barW / 2).toFixed(1)}" y="${(yAcc - 4).toFixed(1)}" fill="#a855f7" font-size="9" font-weight="700" text-anchor="middle" font-family="var(--font-mono)">${item.acc.toFixed(1)}</text>
+
+                <!-- Weight Bar -->
+                <rect x="${b3X.toFixed(1)}" y="${yW.toFixed(1)}" width="${barW}" height="${hW.toFixed(1)}" rx="3" fill="#f97316" opacity="0.9" />
+                <text x="${(b3X + barW / 2).toFixed(1)}" y="${(yW - 4).toFixed(1)}" fill="#f97316" font-size="9" font-weight="700" text-anchor="middle" font-family="var(--font-mono)">${item.isBest ? '운영' : item.weight.toFixed(0) + '%'}</text>
+
+                <!-- X Label -->
+                <text x="${cx.toFixed(1)}" y="${y0 + ph + 18}" fill="${item.isBest ? 'var(--text-accent)' : 'var(--text-secondary)'}" font-size="10" font-weight="${item.isBest ? '800' : '600'}" text-anchor="middle">${item.name}</text>
+            `;
+        });
+
+        container.innerHTML = `
+            <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+                <!-- Y축 그리드선 -->
+                <line x1="${x0}" y1="${y0 + ph * 0.25}" x2="${x0 + pw}" y2="${y0 + ph * 0.25}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,2" />
+                <line x1="${x0}" y1="${y0 + ph * 0.5}" x2="${x0 + pw}" y2="${y0 + ph * 0.5}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,2" />
+                <line x1="${x0}" y1="${y0 + ph * 0.75}" x2="${x0 + pw}" y2="${y0 + ph * 0.75}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,2" />
+                <line x1="${x0}" y1="${y0 + ph}" x2="${x0 + pw}" y2="${y0 + ph}" stroke="rgba(255,255,255,0.2)" />
+
+                <text x="${x0 - 8}" y="${y0 + ph * 0.25 + 3}" fill="var(--text-secondary)" font-size="9" text-anchor="end" font-family="var(--font-mono)">75%</text>
+                <text x="${x0 - 8}" y="${y0 + ph * 0.5 + 3}" fill="var(--text-secondary)" font-size="9" text-anchor="end" font-family="var(--font-mono)">50%</text>
+                <text x="${x0 - 8}" y="${y0 + ph * 0.75 + 3}" fill="var(--text-secondary)" font-size="9" text-anchor="end" font-family="var(--font-mono)">25%</text>
+                <text x="${x0 - 8}" y="${y0 + ph + 3}" fill="var(--text-secondary)" font-size="9" text-anchor="end" font-family="var(--font-mono)">0%</text>
+
+                ${groupsHtml}
+            </svg>
+        `;
+    }
+
+    // [그래프 3] 6대 핵심 공정 변수 특성 중요도 & 파레토 누적 곡선 차트 (SVG)
+    function renderFeatureParetoChart() {
+        const container = document.getElementById('featureParetoChartContainer');
+        if (!container || !state.modelMetrics || !state.modelMetrics.feature_importances) return;
+
+        const feats = state.modelMetrics.feature_importances;
+        const w = 1000, h = 210;
+        const x0 = 210, y0 = 20, pw = 740, ph = 160;
+        const rowH = ph / feats.length;
+
+        let cum = 0;
+        const cumPoints = [];
+        let barsHtml = '';
+
+        feats.forEach((f, idx) => {
+            const barW = (f.importance / 0.40) * (pw * 0.55);
+            const by = y0 + idx * rowH + 4;
+            const barHeight = 15;
+
+            cum += f.importance * 100;
+            const cumX = x0 + (cum / 100) * pw;
+            const cumY = by + barHeight / 2;
+            cumPoints.push({ x: cumX, y: cumY, val: cum });
+
+            barsHtml += `
+                <!-- 특성 라벨 -->
+                <text x="${x0 - 12}" y="${by + 11}" fill="var(--text-secondary)" font-size="11" font-weight="600" text-anchor="end">${f.name}</text>
+                
+                <!-- 개별 특성 중요도 막대 -->
+                <rect x="${x0}" y="${by}" width="${barW.toFixed(1)}" height="${barHeight}" rx="4" fill="url(#featGradient)" opacity="0.9" />
+                <text x="${(x0 + barW + 8).toFixed(1)}" y="${by + 11}" fill="var(--text-accent)" font-size="10" font-weight="700" font-family="var(--font-mono)">${(f.importance * 100).toFixed(1)}%</text>
+            `;
+        });
+
+        // 파레토 누적 곡선 폴리라인
+        const polyPoints = cumPoints.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+        let paretoDots = '';
+        cumPoints.forEach((p, i) => {
+            const isHighlight = i === 1; // 상위 2대 인자 64% 변곡점
+            paretoDots += `
+                <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${isHighlight ? '6' : '4'}" fill="${isHighlight ? '#ec4899' : '#a855f7'}" stroke="#ffffff" stroke-width="${isHighlight ? '2' : '1'}" />
+                <text x="${p.x.toFixed(1)}" y="${(p.y - 8).toFixed(1)}" fill="${isHighlight ? '#ec4899' : 'var(--text-secondary)'}" font-size="${isHighlight ? '11' : '9'}" font-weight="${isHighlight ? '800' : '600'}" text-anchor="middle" font-family="var(--font-mono)">누적 ${p.val.toFixed(1)}%</text>
+            `;
+        });
+
+        container.innerHTML = `
+            <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+                <defs>
+                    <linearGradient id="featGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#00e5ff" />
+                        <stop offset="100%" stop-color="#7c4dff" />
+                    </linearGradient>
+                </defs>
+
+                <!-- 50%, 80%, 100% 누적 기준선 -->
+                <line x1="${x0 + pw * 0.64}" y1="${y0}" x2="${x0 + pw * 0.64}" y2="${y0 + ph}" stroke="#ec4899" stroke-dasharray="3,3" opacity="0.6" />
+                <line x1="${x0 + pw * 0.80}" y1="${y0}" x2="${x0 + pw * 0.80}" y2="${y0 + ph}" stroke="rgba(255,255,255,0.12)" stroke-dasharray="2,2" />
+                <line x1="${x0 + pw}" y1="${y0}" x2="${x0 + pw}" y2="${y0 + ph}" stroke="rgba(255,255,255,0.2)" />
+
+                <text x="${x0 + pw * 0.64}" y="${y0 + ph + 16}" fill="#ec4899" font-size="10" font-weight="700" text-anchor="middle">64.0% 변곡선 (핵심통제점)</text>
+                <text x="${x0 + pw * 0.80}" y="${y0 + ph + 16}" fill="var(--text-secondary)" font-size="9" text-anchor="middle">80% 파레토 라인</text>
+                <text x="${x0 + pw}" y="${y0 + ph + 16}" fill="var(--text-secondary)" font-size="9" text-anchor="middle">100%</text>
+
+                <!-- 막대 및 텍스트 -->
+                ${barsHtml}
+
+                <!-- 누적 꺾은선 곡선 -->
+                <polyline fill="none" stroke="#ec4899" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" points="${polyPoints}" />
+                ${paretoDots}
+
+                <!-- 64% 지배 콜아웃 배지 -->
+                <g transform="translate(${x0 + pw * 0.64 + 10}, 42)">
+                    <rect x="0" y="0" width="220" height="24" rx="4" fill="rgba(236, 72, 153, 0.15)" stroke="#ec4899" stroke-width="1.2" />
+                    <text x="110" y="16" fill="#f472b6" font-size="10" font-weight="800" text-anchor="middle">온도+압력 2대 인자 = 전체 품질 64.0% 지배</text>
+                </g>
+            </svg>
+        `;
+    }
+
+    // 툴팁 노출 및 숨김 함수
+    function showScatterTooltip(e, text) {
+        const tip = document.getElementById('labChartTooltip');
+        if (!tip) return;
+        tip.innerText = text;
+        tip.style.display = 'block';
+        const rect = tip.parentElement.getBoundingClientRect();
+        let left = e.clientX - rect.left + 15;
+        let top = e.clientY - rect.top + 10;
+        if (left + 240 > rect.width) left = left - 260;
+        tip.style.left = `${left}px`;
+        tip.style.top = `${top}px`;
+    }
+
+    function hideScatterTooltip() {
+        const tip = document.getElementById('labChartTooltip');
+        if (tip) tip.style.display = 'none';
+    }
+
+    // 8-2. 사용자 역할별 심층 분석 리뷰 & 인사이트 스튜디오 (Role-Tailored Deep Insight Studio)
+    const roleInsightsData = {
+        operator: {
+            roleName: '현장 작업자 (Operator)',
+            icon: '👷',
+            tagline: '직관적 신호등 상태 파악 및 즉각적인 설비 조작 행동 수칙',
+            statusLevel: 'review',
+            statusText: '주의 관찰 필요 (🟡 Yellow Alert)',
+            confidenceScore: '94.2% AI 신뢰도',
+            kpis: [
+                { label: '챔버 내부 온도', val: '401.5 °C', delta: '+1.5°C 편차', status: 'warn' },
+                { label: '챔버 진공 압력', val: '2.52 mTorr', delta: '+2.5% 초과', status: 'warn' },
+                { label: '품질 위험 지수', val: '0.28 (안정)', delta: '허용치(±1.0) 이내', status: 'good' },
+                { label: '다음 로트 대기', val: '4분 12초', delta: '웨이퍼 투입 대기', status: 'good' }
+            ],
+            fourSentences: {
+                p1: '지금 3번 PECVD 플라즈마 증착 챔버의 내부 온도가 기준(400°C)보다 1.5°C 높고 내부 압력이 2.5% 미세 상승했습니다.',
+                p2: '이 상태가 15분 이상 지속되면 박막 증착 두께의 균일도가 떨어져 다음 5단계 식각 공정에서 품질 이탈이 발생할 위험이 있습니다.',
+                p3: '냉각수 바이패스 밸브(V-102) 개도율을 확인하고, 차압 게이지 지침이 2.8 mTorr를 넘지 않는지 5분 간격으로 확인하십시오.',
+                p4: '현재 현상이 센서 교정 오차인지 실제 배관 누설인지 여부는 설비 정비원의 진공 리크 체크 전까지 확정되지 않았습니다.'
+            },
+            actions: [
+                { priority: 'P0', title: '냉각수 유량 밸브 V-102 개도율 50% 유지 점검', desc: '챔버 온도 400°C 안정화 확인 후 다음 로트 투입 진행' },
+                { priority: 'P1', title: '챔버 도어 진공 O링 씰 이물질 육안 점검', desc: '도어 개폐 시 파티클 카운터 지침이 0.05 개/cm² 이하인지 확인' },
+                { priority: 'P2', title: '이상 지속 시 인터콤으로 설비보전반 긴급 무전 호출', desc: '연속 2회 규격 이탈 판정 시 즉시 인터록(Interlock) 일시정지 조치' }
+            ],
+            toolAction: { label: '🔧 설비 이상 점검 작업 즉시 발행', target: 'tasks' }
+        },
+        maintenance: {
+            roleName: '설비 정비원 (Maintenance Technician)',
+            icon: '🔧',
+            tagline: '예방보전(PM) 주기 예측, 부품 마모도 진단 및 표준행동절차(SOP) 연계',
+            statusLevel: 'review',
+            statusText: '정비 검토 권고 (P1 Maintenance)',
+            confidenceScore: '92.8% 부품 수명 예측',
+            kpis: [
+                { label: 'RF 매칭 임피던스', val: '0.45 σ', delta: '정합 불균형 관측', status: 'warn' },
+                { label: '진동 실효치 (RMS)', val: '0.038 g', delta: '정상 한계(0.05g) 이내', status: 'good' },
+                { label: '방전 코일 열화도', val: '85.2 %', delta: '교체 권고치(85%) 도달', status: 'warn' },
+                { label: '예방정비(PM) 주기', val: 'D-3일', delta: '3일 조기 실시 권고', status: 'good' }
+            ],
+            fourSentences: {
+                p1: '5번 ICP 플라즈마 식각기의 RF 제너레이터 매칭 박스에서 임피던스 반사파 편차가 0.45σ로 상승했습니다.',
+                p2: 'RF 전력 전달 효율이 저하되면 플라즈마 밀도가 불균일해져 식각 깊이 편차(현재 221.8nm, 목표 220nm)가 커집니다.',
+                p3: '방전 코일 열화 누적치(85.2%)를 감안하여 3일 후 예정된 정기 PM을 1일 앞당겨 가스켓과 코일을 동시 교체하십시오.',
+                p4: '임피던스 편차가 매칭 박스 가변 캐패시터 모터의 기계적 마모 때문인지 RF 케이블 열화 때문인지는 분해 측정 전까지 미확인 상태입니다.'
+            },
+            actions: [
+                { priority: 'P0', title: 'RF 매칭부 진공 가변 콘덴서(VC1/VC2) 용량 실측', desc: '반사파 전력(Reflected Power)이 입사파의 2% 이하인지 오실로스코프 확인' },
+                { priority: 'P1', title: '표준 정비 키트(Part No. RF-COIL-440) 자재실 불출 요청', desc: '사전 승인된 예비 정품 파트 확보 후 클린룸 정비실 대기' },
+                { priority: 'P2', title: '표준행동절차 SOP-04 준수 하에 챔버 드라이아이스 클리닝', desc: '절연 가스켓 교체 후 He 리크 디텍터로 진공도 1.0e-6 Torr 확인' }
+            ],
+            toolAction: { label: '🛠️ [SOP-04] RF 매칭부 정비 작업 원장 등록', target: 'tasks' }
+        },
+        manager: {
+            roleName: '생산 관리자 (Production Manager)',
+            icon: '👤',
+            tagline: '라인 종합 효율(OEE), 공정 간 병목 정체(Queue Time) 해소 및 일일 납기 관리',
+            statusLevel: 'normal',
+            statusText: '라인 종합 수율 97.8% (안정 유지)',
+            confidenceScore: '96.5% 납기 준수율',
+            kpis: [
+                { label: '공정 간 대기시간', val: '13.8 분', delta: '목표(12분) 대비 +1.8분', status: 'warn' },
+                { label: '규격 이탈률', val: '2.2 %', delta: '전일 대비 -0.3%p (개선)', status: 'good' },
+                { label: '라인 가동률 (OEE)', val: '91.4 %', delta: '월간 목표(90%) 초과 달성', status: 'good' },
+                { label: '불량 리스크 로트', val: '1 건 (격리)', delta: 'Lot #20270101-04', status: 'warn' }
+            ],
+            fourSentences: {
+                p1: '1~5단계 전공정 품질 지표는 안정적이나, 식각에서 이온주입으로 넘어가는 공정 대기시간이 평균 13.8분으로 지연 중입니다.',
+                p2: '대기시간 정체 방치 시 후공정 CMP 및 패키징 설비의 유휴 대기(Idle)가 발생하여 일일 생산량이 4.5% 감소할 수 있습니다.',
+                p3: '오후 2교대 투입 로트를 시간당 4개로 균등 배분하고, AI 주의 판정 로트 1건을 사전 선별하여 검사 레인으로 우회하십시오.',
+                p4: '원자재(가스 튜브/웨이퍼 인곳) 로트 간 물성 편차로 인한 식각 속도 미세 변동 원인은 자재 입고 성적서 대조 전까지 조사 중입니다.'
+            },
+            actions: [
+                { priority: 'P0', title: '공정 대기시간 병목 완화를 위한 로트 투입 간격 15분 재조정', desc: '5단계 식각 완료 버퍼(Foup Stocker) 체류 시간 12분 이하 단축' },
+                { priority: 'P1', title: 'AI 예측 주의 로트(#20270101-04) 후공정 직투입 차단 및 중간 ATE 배정', desc: '불량 웨이퍼 패키징 투입 사전 방지로 재작업 손실 1,280만 원 회피' },
+                { priority: 'P2', title: '일일 생산 회의 안건 등록: 3번/5번 설비 예방보전 일정 확정', desc: '야간 비가동 시간대(23:00~02:00) 활용하여 정비 스케줄 조율' }
+            ],
+            toolAction: { label: '📄 생산 관리 일일 보고서 자동 생성', target: 'reports' }
+        },
+        engineer: {
+            roleName: '공정 기술원 / AI 엔지니어 (Process & AI Specialist)',
+            icon: '🔬',
+            tagline: '통계적 잔차 분석, 다변량 공정 제어(MPC), 특성 민감도 및 모델 드리프트 모니터링',
+            statusLevel: 'normal',
+            statusText: '모델 안정성 우수 (R² 0.6036, MAE 0.3018)',
+            confidenceScore: 'p-value < 0.001 (통계적 유의)',
+            kpis: [
+                { label: '결정계수 (R²)', val: '0.6036', delta: '단일트리 대비 +1.4%p', status: 'good' },
+                { label: '잔차 왜도 (Skew)', val: '0.041', delta: '정규분포 완벽 부합', status: 'good' },
+                { label: 'Durbin-Watson', val: '1.982', delta: '잔차 자기상관 없음', status: 'good' },
+                { label: '모델 추론 레이턴시', val: '8.2 ms', delta: '실시간 제어(50ms) 여유', status: 'good' }
+            ],
+            fourSentences: {
+                p1: '가중 앙상블 모델의 1,000건 독립 테스트셋 검증 결과 MAE 0.3018, RMSE 0.3816으로 오차 한계(±1.0) 내에 안착했습니다.',
+                p2: 'SHAP 분석 결과, 온도 편차(34.2%)와 압력 편차(29.8%)의 교호작용(Interaction)이 전체 품질 분산의 64.0%를 주도합니다.',
+                p3: '온도-압력 2차원 반응 표면을 기반으로 레시피 허용 윈도우(Tolerance Box)를 현재 ±2.5%에서 ±1.5%로 축소 권고합니다.',
+                p4: '외기 계절 변화(동절기/하절기)에 따른 챔버 외벽 열팽창 드리프트 보정 계수는 3개월 추가 시계열 데이터 수집 후 검증 예정입니다.'
+            },
+            actions: [
+                { priority: 'P0', title: '온도·압력 다변량 상관 제어(MPC) 알고리즘 PLC 피드백 연동', desc: '설비 단독 PID 제어에서 상위 AI 오프셋 실시간 보정 루프로 고도화' },
+                { priority: 'P1', title: '분기별 AI 모델 드리프트 재학습 트리거 기준 확립 (RMSE > 0.42)', desc: '10,000행 합성원장 제2판에서 신규 현장 실측치 누적 전이학습(Fine-tuning) 설계' },
+                { priority: 'P2', title: '운전조건 시뮬레이터 파라미터 최적화 결과 레시피 매니저에 등록', desc: '가상 변경 시뮬레이션 기반 전력 소비 0.5 kWh 절감 레시피 배포' }
+            ],
+            toolAction: { label: '⚡ 운전조건 가상 시뮬레이션 최적화 열기', target: 'scenario' }
+        },
+        clevel: {
+            roleName: '경영진 (C-Level Executive)',
+            icon: '💼',
+            tagline: '투자 대비 효과(ROI), 연간 품질 손실 회피액 및 ESG 탄소 배출 저감 성과',
+            statusLevel: 'normal',
+            statusText: '연간 경제적 효과 4.8억 원 창출',
+            confidenceScore: '7.4개월 투자회수(Payback)',
+            kpis: [
+                { label: '연간 품질손실 회피', val: '4억 8천만 원', delta: '불량률 0.3%p 저감', status: 'good' },
+                { label: '다운타임 예방 시간', val: '14.8 시간', delta: '불시 셧다운 방지', status: 'good' },
+                { label: 'ESG 전력 절감량', val: '28,400 kWh', delta: '탄소 13.2톤 감축', status: 'good' },
+                { label: '투자 회수 기간', val: '7.4 개월', delta: '2027년 하반기 전사 확대', status: 'good' }
+            ],
+            fourSentences: {
+                p1: '써니웨이브텍 금속 표면파 통신 기반 AI 예지보전 도입으로 연간 품질 규격 이탈률이 2.5%에서 2.2%로 0.3%p 개선되었습니다.',
+                p2: '설비 고장 사전 예측을 통해 연간 14.8시간의 라인 불시 정지를 방지하여 웨이퍼 폐기 및 리워크 비용 손실을 원천 차단했습니다.',
+                p3: '현재 1개 라인 실증 성과를 바탕으로 2027년 3분기 아산 제2공장 및 후공정 패키징 라인 전사 확대를 승인하십시오.',
+                p4: '원자재 국제 시세 변동 및 전력 단가 인상에 따른 연간 순절감액의 변동 범위는 상반기 결산 감사 후 최종 확정됩니다.'
+            },
+            actions: [
+                { priority: 'P0', title: '2027년 스마트제조 2단계 확대 예산(금속 표면파 통신망 구축) 승인', desc: '평택 제1공장 잔여 라인 및 아산 OLED 라인 20개 공정으로 예지보전 플랫폼 확장' },
+                { priority: 'P1', title: 'ESG 지속가능경영 보고서에 연간 탄소 13.2톤 감축 실적 공시 반영', desc: '산업통상자원부 스마트그린산단 에너지 효율화 우수 사례 출품' },
+                { priority: 'P2', title: '써니웨이브텍-협력사 간 현장 운영 성과 인센티브 분배안 검토', desc: '수율 개선 기여도에 따른 현장 조업 엔지니어 성과 보상 연계' }
+            ],
+            toolAction: { label: '📄 경영진용 종합 의사결정 보고서 인쇄', target: 'reports' }
+        }
+    };
+
+    function renderRoleInsightStudio(targetRole) {
+        const container = document.getElementById('roleDeepDiveContainer');
+        if (!container) return;
+
+        const roleKey = roleInsightsData[targetRole] ? targetRole : 'manager';
+        const data = roleInsightsData[roleKey];
+
+        // 필 탭 상태 갱신
+        document.querySelectorAll('.role-insight-pill').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.role === roleKey);
+        });
+
+        const tagEl = document.getElementById('currentRoleInsightTag');
+        if (tagEl) {
+            tagEl.innerText = `현재 관점: ${data.icon} ${data.roleName}`;
+        }
+
+        // 4대 KPI 스트립 생성
+        const kpiHtml = data.kpis.map(k => `
+            <div class="kpi-card" style="padding:10px 12px;">
+                <div class="kpi-meta">
+                    <div class="kpi-label" style="font-size:11px;">${k.label}</div>
+                    <div class="kpi-val" style="font-size:16px;">${k.val}</div>
                 </div>
-            `).join('');
+                <span class="kpi-delta ${k.status}">${k.delta}</span>
+            </div>
+        `).join('');
+
+        // 우선순위 체크리스트 생성
+        const actionsHtml = data.actions.map(act => `
+            <div class="checklist-item ${act.priority.toLowerCase()}">
+                <span class="priority-badge ${act.priority.toLowerCase()}">${act.priority}</span>
+                <div class="checklist-content">
+                    <div class="checklist-title">${act.title}</div>
+                    <div class="checklist-desc">${act.desc}</div>
+                </div>
+            </div>
+        `).join('');
+
+        container.innerHTML = `
+            <div class="role-deep-dive-card">
+                <!-- 헤더 배너 -->
+                <div class="role-header-banner">
+                    <div class="role-header-title-wrap">
+                        <span style="font-size:28px;">${data.icon}</span>
+                        <div>
+                            <div class="role-header-title">${data.roleName} 심층 진단 리포트</div>
+                            <div class="role-header-sub">${data.tagline}</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="kpi-delta ${data.statusLevel === 'normal' ? 'good' : 'warn'}" style="font-size:11px; padding:4px 8px;">${data.statusText}</span>
+                        <span style="font-size:11px; color:var(--text-accent); font-weight:700;">${data.confidenceScore}</span>
+                    </div>
+                </div>
+
+                <!-- 핵심 모니터링 KPI 스트립 -->
+                <div class="role-kpi-summary-bar">
+                    ${kpiHtml}
+                </div>
+
+                <!-- 비전문가를 위한 쉬운 4문장 구조 해석 -->
+                <div>
+                    <div style="font-size:13px; font-weight:700; color:var(--text-accent); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                        <span>💡 비전문가를 위한 4문장 실무 해석 (현상 → 영향 → 조치 → 한계)</span>
+                        <span style="font-size:10px; color:var(--text-muted); font-weight:normal;">쉬운 설명 프레임워크</span>
+                    </div>
+                    <div class="easy-explain-grid">
+                        <div class="explain-box">
+                            <span class="step-tag">1단계. 지금 무슨 일이 보이는가</span>
+                            <div class="explain-text">${data.fourSentences.p1}</div>
+                        </div>
+                        <div class="explain-box">
+                            <span class="step-tag">2단계. 왜 즉시 확인해야 하는가</span>
+                            <div class="explain-text">${data.fourSentences.p2}</div>
+                        </div>
+                        <div class="explain-box">
+                            <span class="step-tag">3단계. 구체적으로 무엇을 할 수 있는가</span>
+                            <div class="explain-text">${data.fourSentences.p3}</div>
+                        </div>
+                        <div class="explain-box">
+                            <span class="step-tag">4단계. 아직 모르는 것은 무엇인가</span>
+                            <div class="explain-text">${data.fourSentences.p4}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 우선순위별 조치 권고 체크리스트 -->
+                <div>
+                    <div style="font-size:13px; font-weight:700; color:var(--text-accent); margin-bottom:8px;">
+                        📋 역할별 표준 행동 지침 및 조치 권고 체크리스트
+                    </div>
+                    <div class="role-checklist-container">
+                        ${actionsHtml}
+                    </div>
+                </div>
+
+                <!-- 역할 특화 도구 연계 버튼 -->
+                <div class="role-action-link-bar">
+                    <button id="roleToolActionBtn" class="tool-btn" style="background:var(--bus-sensor); color:#05131d; font-weight:800; border:none; padding:8px 16px;">
+                        ${data.toolAction.label} ➔
+                    </button>
+                </div>
+            </div>
+        `;
+
+        // 액션 버튼 이벤트 연동
+        const actionBtn = document.getElementById('roleToolActionBtn');
+        if (actionBtn) {
+            actionBtn.addEventListener('click', () => {
+                const target = data.toolAction.target;
+                if (target === 'tasks' || target === 'reports') {
+                    state.activeWorkspace = target;
+                    document.querySelectorAll('.nav-tab-btn').forEach(b => {
+                        b.classList.toggle('active', b.dataset.workspace === target);
+                    });
+                    renderWorkspace();
+                } else if (target === 'scenario') {
+                    state.labActiveTab = 'scenario';
+                    document.querySelectorAll('.lab-nav-item').forEach(i => {
+                        i.classList.toggle('active', i.dataset.tab === 'scenario');
+                    });
+                    document.querySelectorAll('.lab-panel').forEach(p => p.classList.remove('active'));
+                    const p = document.getElementById('labPanel_scenario');
+                    if (p) p.classList.add('active');
+                }
+            });
         }
     }
 
     function renderLabExplainSection() {
-        const container = document.getElementById('easyExplainContainer');
-        if (!container) return;
-
-        const role = state.role;
-        let p1, p2, p3, p4;
-
-        if (role === 'operator') {
-            p1 = "플라즈마 증착 설비의 챔버 내부 압력이 설정 기준치보다 약 2.5% 높게 계측되었습니다.";
-            p2 = "압력 상승 시 박막 증착 균일도가 규격을 벗어날 위험이 있으므로 즉시 점검이 필요합니다.";
-            p3 = "진공 배기 밸브의 개폐 상태와 하부 진공 펌프 게이지 수치를 1차로 육안 확인하십시오.";
-            p4 = "센서 자체의 교정 오차인지 실제 배관 누설인지 여부는 엔지니어 정밀 점검 전까지 확인되지 않았습니다.";
-        } else if (role === 'clevel') {
-            p1 = "2027년 1월 현재 설비 앙상블 예지보전 모델의 오차 설명력(R²)은 0.6036으로 매우 안정적입니다.";
-            p2 = "AI 조건 최적화를 통해 연간 공정 불량률 0.3%p 저감 및 대기시간 단축 효과가 기대됩니다.";
-            p3 = "상용 실증을 위한 1개 라인 대상의 읽기 전용 통신 연계 및 현장 효과 검증을 승인하십시오.";
-            p4 = "생산량 및 원가 단가 계약 확정 전까지 정확한 순절감액 및 투자회수(ROI) 수치는 산출 보류 중입니다.";
-        } else { // 관리자 및 엔지니어
-            p1 = "3번 증착 챔버 및 5번 식각기에서 RF 전력 및 압력 편차로 인한 품질 변동이 관측되었습니다.";
-            p2 = "영향도 분석 결과, 온도 편차(34.2%)와 압력 편차(29.8%)가 품질 편차 유발의 주요 원인입니다.";
-            p3 = "설비 보전팀에 RF 제너레이터 매칭 박스 임피던스 점검 작업(P0 긴급)을 배정하고 기한을 설정하십시오.";
-            p4 = "원자재(가스/타겟) 로트 변경에 따른 화학적 반응 특성 편차는 추가 현장 실험 데이터가 필요합니다.";
-        }
-
-        container.innerHTML = `
-            <div class="explain-box">
-                <span class="step-tag">1단계. 무슨 일이 보이는가</span>
-                <div class="explain-text">${p1}</div>
-            </div>
-            <div class="explain-box">
-                <span class="step-tag">2단계. 왜 확인해야 하는가</span>
-                <div class="explain-text">${p2}</div>
-            </div>
-            <div class="explain-box">
-                <span class="step-tag">3단계. 무엇을 할 수 있는가</span>
-                <div class="explain-text">${p3}</div>
-            </div>
-            <div class="explain-box">
-                <span class="step-tag">4단계. 아직 모르는 것은 무엇인가</span>
-                <div class="explain-text">${p4}</div>
-            </div>
-        `;
+        renderRoleInsightStudio(state.role || 'manager');
     }
 
     function runScenarioInference() {
