@@ -37,8 +37,8 @@
 
         <div class="header-right-tools">
             <select id="industrySelect" class="role-badge-select">
-                <option value="SEMICONDUCTOR">반도체 (평택 제1공장 1호 라인)</option>
-                <option value="OLED">OLED (아산 제2공장 2호 라인)</option>
+                <option value="SEMICONDUCTOR">반도체 제조 (평택 제1공장 1호 라인)</option>
+                <option value="OLED">OLED 디스플레이 (아산 제2공장 2호 라인)</option>
             </select>
 
             <select id="roleSelect" class="role-badge-select">
@@ -57,11 +57,11 @@
     <!-- 2. 실행 컨텍스트 바 (PRD ADD-02 P0) -->
     <section class="context-bar">
         <div class="context-item-group">
-            <span class="context-tag">운영 조직: <strong>써니웨이브텍 / 스마트제조</strong></span>
+            <span class="context-tag">운영 조직: <strong>써니웨이브텍 / 스마트제조추진본부</strong></span>
             <span class="context-tag">적용 공정: <strong id="contextIndustryTag">반도체</strong> (<span id="contextLineTag">평택 제1공장 1호 라인</span>)</span>
             <span class="context-tag">가상 기준일자: <strong id="contextDateTag">2027년 01월 01일</strong></span>
             <span class="context-tag">데이터 버전: <strong>제1판(합성원장)</strong></span>
-            <span class="context-tag">운영 모델: <strong>제2판(가중 앙상블)</strong></span>
+            <span class="context-tag">운영 AI 모델: <strong>제2판(가중 앙상블 모델)</strong></span>
         </div>
         <div class="context-item-group">
             <div class="comm-status-indicator">
@@ -74,7 +74,7 @@
     <!-- 3. 메인 뷰포트 영역 -->
     <main class="main-viewport">
 
-        <!-- [워크스페이스 A] 2D 설비 관제 센터 -->
+        <!-- [워크스페이스 A] 2D 설비 관제 센터 (2열 대형화 공정 다이어그램) -->
         <div id="workspace_control" class="workspace-pane active">
             <div class="control-center-layout">
                 
@@ -110,7 +110,7 @@
                     </div>
                 </div>
 
-                <!-- 캔버스 및 설비 노드 스트립 -->
+                <!-- 캔버스 및 설비 노드 스트립 (2열 대형화 레이아웃) -->
                 <div class="control-main-canvas">
                     <div class="factory-floor-diagram">
                         <!-- 범례 바 -->
@@ -133,24 +133,58 @@
                             </div>
                         </div>
 
-                        <!-- 10대 설비 통합 래퍼 (레일 + 카드 + 센서버스) -->
-                        <div class="equipment-stage-wrapper">
-                            <!-- 상부 이송 레일 -->
-                            <div class="transfer-rail-line"></div>
-                            <div id="transferLotCarrier" class="transfer-lot-carrier" style="left: 20px;" title="웨이퍼 로트(FOUP) 이송 중"></div>
+                        <!-- 2열 대형화 공정 컨테이너 -->
+                        <div class="equipment-two-tier-container">
+                            
+                            <!-- 1열 (상단): 공정 1~5단계 (전공정 박막·식각 라인) -->
+                            <div class="tier-section">
+                                <div class="tier-section-header">
+                                    <span id="tier1SectionTitle">🔵 전공정 박막·패터닝 라인 (공정 1단계 ~ 5단계)</span>
+                                </div>
+                                <div class="tier-rail-track"></div>
+                                <div id="transferLotCarrier1" class="tier-lot-carrier" style="left: 30px;" title="전공정 웨이퍼 로트(FOUP) 캐리어">
+                                    <span class="carrier-badge">FOUP-1</span>
+                                </div>
 
-                            <!-- 설비 노드 카드 10개 컨테이너 -->
-                            <div id="equipmentGridStrip" class="equipment-grid-strip">
-                                <!-- JS 동적 렌더링 -->
+                                <div id="equipmentGridRow1" class="tier-equipment-grid">
+                                    <!-- JS 동적 렌더링 (1~5단계 설비) -->
+                                </div>
+
+                                <div class="tier-sensor-bus"></div>
+                                <div id="dataPacketToken1" class="tier-data-packet" style="left: 120px;" title="금속 표면파 센서 텔레메트리 패킷"></div>
                             </div>
 
-                            <!-- 하부 센서 데이터 버스 -->
-                            <div class="sensor-data-bus"></div>
-                            <div class="data-packet-token" style="left: 100px;" title="센서 텔레메트리 데이터 패킷"></div>
+                            <!-- 1열과 2열 사이 공정 흐름 브릿지 (Inter-tier Transition Flow) -->
+                            <div class="tier-flow-bridge">
+                                <div class="bridge-path-line"></div>
+                                <div class="bridge-indicator-badge">
+                                    <span id="tierBridgeTitle">▼ <strong>전공정 1~5단계 완료</strong> ➔ <strong>후공정 6~10단계 연마·패키징 라인 인계</strong> (금속 표면파 초당 10Gbps 고속 통신 버스) ▼</span>
+                                </div>
+                                <div class="bridge-path-line"></div>
+                            </div>
+
+                            <!-- 2열 (하단): 공정 6~10단계 (후공정 연마·패키징 라인) -->
+                            <div class="tier-section">
+                                <div class="tier-section-header">
+                                    <span id="tier2SectionTitle">🟣 후공정 연마·모듈검사 라인 (공정 6단계 ~ 10단계)</span>
+                                </div>
+                                <div class="tier-rail-track"></div>
+                                <div id="transferLotCarrier2" class="tier-lot-carrier" style="left: 150px;" title="후공정 다이/패키지 로트 캐리어">
+                                    <span class="carrier-badge">TRAY-2</span>
+                                </div>
+
+                                <div id="equipmentGridRow2" class="tier-equipment-grid">
+                                    <!-- JS 동적 렌더링 (6~10단계 설비) -->
+                                </div>
+
+                                <div class="tier-sensor-bus"></div>
+                                <div id="dataPacketToken2" class="tier-data-packet" style="left: 280px;" title="금속 표면파 센서 텔레메트리 패킷"></div>
+                            </div>
+
                         </div>
                     </div>
 
-                    <!-- 선택 설비 상세 드로어 -->
+                    <!-- 선택 설비 상세 드로어 패널 -->
                     <div id="equipmentDetailDrawer" class="equipment-detail-panel">
                         <!-- JS 동적 렌더링 -->
                     </div>
@@ -185,7 +219,6 @@
         <!-- [워크스페이스 B] 전문 AI 분석실 -->
         <div id="workspace_lab" class="workspace-pane">
             <div class="lab-layout">
-                <!-- 서브 메뉴 -->
                 <div class="lab-sidebar-nav">
                     <div class="lab-nav-item active" data-tab="diagnostic">📊 1. 데이터 품질·무결성 진단</div>
                     <div class="lab-nav-item" data-tab="benchmark">🤖 2. 4대 AI 모델 비교·평가</div>
@@ -194,7 +227,6 @@
                 </div>
 
                 <div class="lab-content-area">
-                    <!-- 탭 1: 데이터 진단 -->
                     <div id="labPanel_diagnostic" class="lab-panel active">
                         <div class="card-block">
                             <div class="card-block-title">
@@ -205,9 +237,7 @@
                                 <thead>
                                     <tr><th>규칙 번호</th><th>검증 내용</th><th>판정 결과</th><th>상세 검증 내용</th></tr>
                                 </thead>
-                                <tbody id="dqRuleTableBody">
-                                    <!-- JS 렌더링 -->
-                                </tbody>
+                                <tbody id="dqRuleTableBody"></tbody>
                             </table>
                         </div>
 
@@ -230,7 +260,6 @@
                         </div>
                     </div>
 
-                    <!-- 탭 2: 4대 모델 비교 및 평가 -->
                     <div id="labPanel_benchmark" class="lab-panel">
                         <div class="card-block">
                             <div class="card-block-title">
@@ -240,43 +269,29 @@
                             <table class="benchmark-table">
                                 <thead>
                                     <tr>
-                                        <th>모델명</th>
-                                        <th>알고리즘 분류</th>
-                                        <th>평균절대오차 (MAE)</th>
-                                        <th>평균제곱근오차 (RMSE)</th>
-                                        <th>설명력 지표 (R²)</th>
-                                        <th>추론 소요시간</th>
-                                        <th>앙상블 반영 비중</th>
+                                        <th>모델명</th><th>알고리즘 분류</th><th>평균절대오차 (MAE)</th><th>평균제곱근오차 (RMSE)</th><th>설명력 지표 (R²)</th><th>추론 소요시간</th><th>앙상블 반영 비중</th>
                                     </tr>
                                 </thead>
-                                <tbody id="modelBenchmarkTableBody">
-                                    <!-- JS 렌더링 -->
-                                </tbody>
+                                <tbody id="modelBenchmarkTableBody"></tbody>
                             </table>
                         </div>
 
                         <div class="card-block">
                             <div class="card-block-title">공정 변수별 영향도 분석 (특성 중요도)</div>
-                            <div id="featureImportanceContainer">
-                                <!-- JS 렌더링 -->
-                            </div>
+                            <div id="featureImportanceContainer"></div>
                         </div>
                     </div>
 
-                    <!-- 탭 3: 원인 후보 및 쉬운 설명 -->
                     <div id="labPanel_explain" class="lab-panel">
                         <div class="card-block">
                             <div class="card-block-title">
                                 <span>비전문가를 위한 역할 맞춤형 4문장 구조 해석</span>
                                 <span style="font-size:12px; color:var(--bus-sensor);">무슨 일인가 → 왜 확인하나 → 무엇을 할까 → 아직 모르는 것은?</span>
                             </div>
-                            <div id="easyExplainContainer" class="easy-explain-grid">
-                                <!-- JS 렌더링 -->
-                            </div>
+                            <div id="easyExplainContainer" class="easy-explain-grid"></div>
                         </div>
                     </div>
 
-                    <!-- 탭 4: 시나리오 샌드박스 및 다목적 최적화 -->
                     <div id="labPanel_scenario" class="lab-panel">
                         <div class="card-block">
                             <div class="card-block-title">
@@ -335,9 +350,7 @@
                                     <th>작업 번호</th><th>우선순위</th><th>대상 설비</th><th>작업 명칭</th><th>담당자</th><th>진행 상태</th><th>등록 일자</th><th>조치</th>
                                 </tr>
                             </thead>
-                            <tbody id="taskListTableBody">
-                                <!-- JS 렌더링 -->
-                            </tbody>
+                            <tbody id="taskListTableBody"></tbody>
                         </table>
                     </div>
                 </div>
@@ -367,7 +380,6 @@
         <!-- [워크스페이스 D] 보고서 스튜디오 -->
         <div id="workspace_reports" class="workspace-pane">
             <div class="report-studio-layout">
-                <!-- 좌측 템플릿 선택 및 제어 -->
                 <div class="report-sidebar">
                     <div style="font-size:14px; font-weight:700;">보고서 양식 선택 (5종)</div>
                     <div class="report-template-item active" data-tpl="RP-T01">
@@ -410,11 +422,8 @@
                     </div>
                 </div>
 
-                <!-- 우측 A4 문서 렌더링 영역 -->
                 <div class="report-preview-area">
-                    <div id="reportPageDocument" class="report-page-document">
-                        <!-- JS 렌더링 -->
-                    </div>
+                    <div id="reportPageDocument" class="report-page-document"></div>
                 </div>
             </div>
         </div>
@@ -435,7 +444,6 @@
         </div>
 
         <div class="dock-body">
-            <!-- 탭 1: 공지 및 안전 -->
             <div id="dockTool_notice" class="dock-tool-panel">
                 <div style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); padding:12px; border-radius:6px; text-align:center; margin-bottom:14px;">
                     <div style="font-size:11px; color:var(--color-normal);">사업장 연속 무재해 일수</div>
@@ -459,7 +467,6 @@
                 </div>
             </div>
 
-            <!-- 탭 2: 공학 단위 환산기 -->
             <div id="dockTool_converter" class="dock-tool-panel" style="display:none;">
                 <div style="font-size:12px; font-weight:700; margin-bottom:10px;">공학 단위 자동 환산기</div>
                 <div style="display:flex; flex-direction:column; gap:10px;">
@@ -485,7 +492,6 @@
                 </div>
             </div>
 
-            <!-- 탭 3: 공학용 계산기 -->
             <div id="dockTool_calculator" class="dock-tool-panel" style="display:none;">
                 <input id="calcDisplay" type="text" class="calc-display" value="0" readonly>
                 <div class="calc-grid">

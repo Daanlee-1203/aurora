@@ -73,6 +73,7 @@
             updateDateDisplay();
             updateEquipmentDisplay();
             updateKpis();
+            triggerLotCarrierAnimation();
             renderWorkspace();
 
             // 2단계: 백그라운드 데이터 비동기 로드
@@ -390,10 +391,13 @@
         }
     }
 
-    // 7. 메인 관제 센터 렌더링
+    // 7. 메인 관제 센터 렌더링 (2열 2-Tier 대형화 공정 다이어그램)
     function updateEquipmentDisplay() {
-        const grid = document.getElementById('equipmentGridStrip');
-        if (!grid) return;
+        const grid1 = document.getElementById('equipmentGridRow1');
+        const grid2 = document.getElementById('equipmentGridRow2');
+        const legacyGrid = document.getElementById('equipmentGridStrip');
+
+        if (!grid1 && !grid2 && !legacyGrid) return;
 
         const isSemi = state.industry === 'SEMICONDUCTOR';
         const stages = isSemi ? [
@@ -420,6 +424,26 @@
             { seq: 10, name: '10. 모듈검사', eqId: 'EQ_OLED_10', eqName: '비전 검사기', chamber: 'CH_MOD_01', param: '색좌표 편차', val: '1.24', target: '1.2', temp: '25.1 °C', press: '760 토르(Torr)', power: '552 W', dev: 0.16 }
         ];
 
+        // 1열, 2열 섹션 헤더 및 브릿지 텍스트 갱신
+        const t1Title = document.getElementById('tier1SectionTitle');
+        const t2Title = document.getElementById('tier2SectionTitle');
+        const tBridge = document.getElementById('tierBridgeTitle');
+        if (t1Title) {
+            t1Title.innerText = isSemi 
+                ? '🔵 전공정 박막·패터닝 라인 (공정 1단계 ~ 5단계: 웨이퍼 세정 ~ ICP 식각)' 
+                : '🔵 전공정 백플레인·발광 라인 (공정 1단계 ~ 5단계: 기판세정 ~ OLED 증착)';
+        }
+        if (t2Title) {
+            t2Title.innerText = isSemi 
+                ? '🟣 후공정 연마·패키징 라인 (공정 6단계 ~ 10단계: 이온주입 ~ 웨이퍼 테스터)' 
+                : '🟣 후공정 봉지·모듈 조립 검사 라인 (공정 6단계 ~ 10단계: TFE봉지 ~ 비전 검사기)';
+        }
+        if (tBridge) {
+            tBridge.innerHTML = isSemi
+                ? '▼ <strong>전공정 1~5단계 완료</strong> ➔ <strong>후공정 6~10단계 연마·패키징 이송</strong> (금속 표면파 초당 10Gbps 고속 통신 버스) ▼'
+                : '▼ <strong>백플레인 증착 완료</strong> ➔ <strong>후공정 봉지·모듈 검사 라인 이송</strong> (금속 표면파 초당 10Gbps 고속 통신 버스) ▼';
+        }
+
         const daySeed = (state.simDayOfYear * 17) % 100;
         stages.forEach((st, idx) => {
             if (idx === 2 && daySeed > 70) {
@@ -431,8 +455,7 @@
             }
         });
 
-        grid.innerHTML = '';
-        stages.forEach((st, idx) => {
+        const createCardElement = (st, idx) => {
             const card = document.createElement('div');
             card.className = `equipment-node-card ${idx === state.selectedEquipmentIdx ? 'selected' : ''}`;
             card.onclick = () => {
@@ -443,13 +466,33 @@
 
             const svgHtml = window.getEquipmentSVG ? window.getEquipmentSVG(state.industry, st.seq, st.status, st.name) : '';
             card.innerHTML = `
-                <div class="stage-seq-badge">공정 ${st.seq}단계</div>
+                <div class="stage-seq-badge">공정 0${st.seq}단계</div>
                 <div class="eq-svg-wrap">${svgHtml}</div>
                 <div class="eq-name-label" title="${st.eqName}">${st.eqName}</div>
+                <div class="eq-quick-telemetry">
+                    <span>${st.param.slice(0, 6)}: <strong>${st.val}</strong></span>
+                </div>
                 <div class="eq-status-badge ${st.status}">${st.status === 'normal' ? '정상 가동' : (st.status === 'review' ? '조건 검토 필요' : '공정 이탈 경보')}</div>
             `;
-            grid.appendChild(card);
-        });
+            return card;
+        };
+
+        if (grid1 && grid2) {
+            grid1.innerHTML = '';
+            grid2.innerHTML = '';
+            stages.slice(0, 5).forEach((st, idx) => {
+                grid1.appendChild(createCardElement(st, idx));
+            });
+            stages.slice(5, 10).forEach((st, i) => {
+                const idx = i + 5;
+                grid2.appendChild(createCardElement(st, idx));
+            });
+        } else if (legacyGrid) {
+            legacyGrid.innerHTML = '';
+            stages.forEach((st, idx) => {
+                legacyGrid.appendChild(createCardElement(st, idx));
+            });
+        }
 
         renderEquipmentDetail(stages[state.selectedEquipmentIdx]);
     }
@@ -540,6 +583,25 @@
     }
 
     function triggerLotCarrierAnimation() {
+        const carrier1 = document.getElementById('transferLotCarrier1');
+        const carrier2 = document.getElementById('transferLotCarrier2');
+        const packet1 = document.getElementById('dataPacketToken1');
+        const packet2 = document.getElementById('dataPacketToken2');
+
+        const step = state.simDayOfYear % 10;
+        const pct1 = (step / 9) * 88 + 4; // 4% to 92%
+        const pct2 = (((step + 5) % 10) / 9) * 88 + 4;
+
+        if (carrier1) carrier1.style.left = `calc(${pct1}% - 16px)`;
+        if (carrier2) carrier2.style.left = `calc(${pct2}% - 16px)`;
+
+        const pktPct1 = ((state.simDayOfYear * 13) % 88) + 6;
+        const pktPct2 = (((state.simDayOfYear * 19) + 40) % 88) + 6;
+
+        if (packet1) packet1.style.left = `calc(${pktPct1}% - 6px)`;
+        if (packet2) packet2.style.left = `calc(${pktPct2}% - 6px)`;
+
+        // 레거시 단일 행 지원
         const carrier = document.getElementById('transferLotCarrier');
         if (carrier) {
             const pct = ((state.simDayOfYear % 10) / 10) * 100;
