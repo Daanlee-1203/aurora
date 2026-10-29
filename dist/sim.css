@@ -1427,44 +1427,569 @@ body {
 }
 
 /* ==========================================================================
-   7. 워크스페이스 C: 정비 협업 및 SOP 워크플로우
+   7. 워크스페이스 C: 정비 협업, 4대 기본원칙, 5단계 SOP 및 지식그래프 관제 대시보드
    ========================================================================== */
-.task-workspace-layout {
-    display: flex;
+.task-workspace-container {
     height: 100%;
-    padding: 16px;
-    gap: 16px;
-    overflow: hidden;
-}
-
-.task-list-section {
-    flex: 2;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.task-sop-section {
-    flex: 1;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    display: flex;
-    flex-direction: column;
-    padding: 14px;
     overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    background: var(--bg-base);
+}
+
+.task-header-banner {
+    background: linear-gradient(135deg, rgba(22, 34, 48, 0.95) 0%, rgba(17, 26, 36, 0.98) 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.task-header-title-box h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.task-header-title-box p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin: 4px 0 0 0;
+}
+
+.task-header-kpis {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.task-kpi-pill {
+    background: rgba(11, 17, 24, 0.7);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 6px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 95px;
+}
+
+.task-kpi-pill .kpi-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.task-kpi-pill .kpi-val {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+/* 4대 기본 원칙 */
+.principles-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.section-title-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.section-title-strip .title-text {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.principles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+}
+
+.principle-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.principle-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-active);
+}
+
+.principle-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 4px;
+}
+
+.principle-card.p-loto::before { background: var(--color-alert); }
+.principle-card.p-ptw::before { background: var(--bus-sensor); }
+.principle-card.p-torque::before { background: var(--color-normal); }
+.principle-card.p-loop::before { background: var(--bus-ai); }
+
+.principle-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.principle-icon-badge {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+}
+
+.principle-tag {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+}
+
+.principle-card.p-loto .principle-icon-badge { background: rgba(239, 68, 68, 0.15); color: var(--color-alert); }
+.principle-card.p-loto .principle-tag { background: rgba(239, 68, 68, 0.2); color: var(--color-alert); }
+
+.principle-card.p-ptw .principle-icon-badge { background: rgba(0, 229, 255, 0.15); color: var(--bus-sensor); }
+.principle-card.p-ptw .principle-tag { background: rgba(0, 229, 255, 0.2); color: var(--bus-sensor); }
+
+.principle-card.p-torque .principle-icon-badge { background: rgba(16, 185, 129, 0.15); color: var(--color-normal); }
+.principle-card.p-torque .principle-tag { background: rgba(16, 185, 129, 0.2); color: var(--color-normal); }
+
+.principle-card.p-loop .principle-icon-badge { background: rgba(168, 85, 247, 0.15); color: var(--bus-ai); }
+.principle-card.p-loop .principle-tag { background: rgba(168, 85, 247, 0.2); color: var(--bus-ai); }
+
+.principle-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.principle-desc {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.principle-spec-pill {
+    font-size: 10.5px;
+    background: var(--bg-surface-elevated);
+    border: 1px dashed var(--border-color);
+    padding: 6px 10px;
+    border-radius: 4px;
+    color: var(--text-accent);
+    font-family: var(--font-mono);
+}
+
+/* 5단계 SOP 라이프사이클 다이어그램 */
+.sop-lifecycle-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sop-steps-track {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+}
+
+.sop-step-tile {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 14px 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+}
+
+.sop-step-tile:hover {
+    border-color: var(--border-active);
+    background: var(--bg-hover);
+}
+
+.sop-step-tile.active {
+    border-color: var(--bus-sop);
+    background: linear-gradient(180deg, rgba(249, 115, 22, 0.12) 0%, var(--bg-surface) 100%);
+    box-shadow: 0 0 16px rgba(249, 115, 22, 0.25);
+}
+
+.sop-step-tile-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.sop-step-number {
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--bus-sop);
+    background: rgba(249, 115, 22, 0.18);
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-family: var(--font-mono);
+}
+
+.sop-step-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.sop-step-brief {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.sop-detail-panel {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--bus-sop);
+    border-radius: 8px;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.sop-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 10px;
 }
 
-.sop-step-node {
+.sop-detail-check-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 10px;
+}
+
+.sop-check-item {
     background: var(--bg-surface-elevated);
-    border-left: 3px solid var(--bus-sop);
-    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
     padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11.5px;
+    color: var(--text-primary);
+}
+
+/* 지식그래프 대시보드 */
+.kg-dashboard-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.kg-toolbar {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.kg-filter-group {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.kg-filter-btn {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
     font-size: 11px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.kg-filter-btn:hover {
+    color: var(--text-primary);
+    border-color: var(--border-active);
+}
+
+.kg-filter-btn.active {
+    background: var(--bus-sop);
+    color: #fff;
+    border-color: var(--bus-sop);
+}
+
+.kg-search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-base);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 4px 10px;
+}
+
+.kg-search-box input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 12px;
+    width: 220px;
+}
+
+.kg-dashboard-grid {
+    display: grid;
+    grid-template-columns: 1.8fr 1.2fr;
+    gap: 16px;
+    min-height: 560px;
+}
+
+@media (max-width: 1200px) {
+    .sop-steps-track {
+        grid-template-columns: 1fr;
+    }
+    .kg-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.kg-canvas-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.kg-canvas-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(17, 26, 36, 0.7);
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.kg-legend-strip {
+    display: flex;
+    gap: 12px;
+    font-size: 10.5px;
+    flex-wrap: wrap;
+}
+
+.kg-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-secondary);
+}
+
+.kg-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.kg-svg-container {
+    flex: 1;
+    position: relative;
+    background: radial-gradient(circle at 50% 50%, rgba(22, 38, 56, 0.35) 0%, rgba(11, 17, 24, 0.85) 100%);
+    min-height: 520px;
+    overflow: hidden;
+}
+
+/* SVG Graph Elements */
+.kg-edge {
+    stroke: #25384d;
+    stroke-width: 1.6;
+    fill: none;
+    transition: all 0.25s ease;
+}
+
+.kg-edge.active {
+    stroke: var(--bus-sop);
+    stroke-width: 2.8;
+    stroke-dasharray: 6, 3;
+    animation: kgEdgeFlow 1.2s linear infinite;
+}
+
+.kg-edge.dimmed {
+    opacity: 0.15;
+}
+
+@keyframes kgEdgeFlow {
+    from { stroke-dashoffset: 18; }
+    to { stroke-dashoffset: 0; }
+}
+
+.kg-node-g {
+    cursor: pointer;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.kg-node-g:hover rect {
+    filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.7));
+}
+
+.kg-node-g.active rect {
+    stroke: #f97316 !important;
+    stroke-width: 2.5px;
+    filter: drop-shadow(0 0 14px rgba(249, 115, 22, 0.9));
+}
+
+.kg-node-g.connected rect {
+    stroke: #00e5ff !important;
+    stroke-width: 2px;
+    filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.8));
+}
+
+.kg-node-g.dimmed {
+    opacity: 0.2;
+}
+
+.kg-inspector-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+    max-height: 600px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.kg-inspector-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 400px;
+    text-align: center;
+    color: var(--text-muted);
+    gap: 10px;
+}
+
+.kg-rel-box {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.kg-rel-label {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.kg-rel-pill-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.kg-rel-pill {
+    background: rgba(34, 52, 71, 0.7);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-primary);
+}
+
+.kg-rel-pill:hover {
+    border-color: var(--bus-sop);
+    color: #fff;
+    background: rgba(249, 115, 22, 0.2);
+}
+
+/* 작업 원장 카드 */
+.task-ledger-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.task-ledger-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    background: rgba(17, 26, 36, 0.6);
 }
 
 /* ==========================================================================

@@ -531,15 +531,197 @@
             </div>
         </div>
 
-        <!-- [워크스페이스 C] 정비 협업 및 현장 SOP -->
+        <!-- [워크스페이스 C] 정비 협업 및 현장 SOP: 지식그래프 관제 대시보드 -->
         <div id="workspace_tasks" class="workspace-pane">
-            <div class="task-workspace-layout">
-                <div class="task-list-section">
-                    <div style="padding:16px; border-bottom:1px solid var(--border-color); display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:15px; font-weight:700;">현장 점검 및 정비 작업지시 원장</span>
-                        <button id="openTaskModalBtn" class="tool-btn" style="background:var(--bus-sop); color:#fff; border:none;">+ 신규 점검 작업 등록</button>
+            <div class="task-workspace-container">
+                <!-- 상단 헤더 요약 배너 -->
+                <div class="task-header-banner">
+                    <div class="task-header-title-box">
+                        <h2>
+                            <span style="color:var(--bus-sop);">🛠️</span>
+                            정비 협업 지식그래프 & 표준행동절차(SOP) 관제 대시보드
+                        </h2>
+                        <p>설비-센서-결함징후-근본원인-조치SOP-소요부품/공구-담당자 7차원 인과 지식망 및 라이프사이클 기반 표준 정비 체계</p>
                     </div>
-                    <div style="flex:1; overflow-y:auto;">
+                    <div class="task-header-kpis">
+                        <div class="task-kpi-pill">
+                            <span class="kpi-label">지식 노드</span>
+                            <span class="kpi-val" style="color:var(--bus-sensor);">21개</span>
+                        </div>
+                        <div class="task-kpi-pill">
+                            <span class="kpi-label">인과 엣지</span>
+                            <span class="kpi-val" style="color:var(--bus-ai);">28개 활성</span>
+                        </div>
+                        <div class="task-kpi-pill">
+                            <span class="kpi-label">SOP 준수율</span>
+                            <span class="kpi-val" style="color:var(--color-normal);">99.4%</span>
+                        </div>
+                        <div class="task-kpi-pill">
+                            <span class="kpi-label">LOTO 규격준수</span>
+                            <span class="kpi-val" style="color:var(--color-normal);">100%</span>
+                        </div>
+                        <div class="task-kpi-pill">
+                            <span class="kpi-label">평균 수리시간</span>
+                            <span class="kpi-val" style="color:var(--bus-lot);">42분 (-28%)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 섹션 1: 정비 4대 기본 원칙 (Golden Principles) -->
+                <div class="principles-section">
+                    <div class="section-title-strip">
+                        <div class="title-text">
+                            <span>🛡️</span> 정비 협업 4대 기본 원칙 (Golden Principles)
+                        </div>
+                        <span style="font-size:11px; color:var(--text-muted);">무사고·무결점 운용을 위한 절대 준수 수칙</span>
+                    </div>
+                    <div class="principles-grid">
+                        <!-- 원칙 1: LOTO 절대 격리 -->
+                        <div class="principle-card p-loto">
+                            <div class="principle-header">
+                                <div class="principle-icon-badge">🔒</div>
+                                <span class="principle-tag">LOTO RULE</span>
+                            </div>
+                            <div class="principle-name">LOTO 절대 물리 격리 원칙</div>
+                            <div class="principle-desc">
+                                전기(MCCB 차단)·공압(배기 완료)·반응가스(이중 잠금 밸브) 3중 물리 차단 및 시건(Padlock) 전에는 챔버 개방 및 신체 접근을 절대 불허합니다.
+                            </div>
+                            <div class="principle-spec-pill">
+                                ⚡ 잔류 유독가스 N₂ 퍼지 5회 / 진공 리크 &lt; 1.0×10⁻⁹ Torr·L/s
+                            </div>
+                        </div>
+
+                        <!-- 원칙 2: 작업허가 교차 승인 -->
+                        <div class="principle-card p-ptw">
+                            <div class="principle-header">
+                                <div class="principle-icon-badge">📝</div>
+                                <span class="principle-tag">TRI-SIGN PTW</span>
+                            </div>
+                            <div class="principle-name">작업허가(PTW) 교차 승인 원칙</div>
+                            <div class="principle-desc">
+                                공정 엔지니어, 설비 책임자, 환경안전관리자 3자 상호 전자서명(Digital Sign-off)이 완료되기 전에는 정비 작업을 일체 착수할 수 없습니다.
+                            </div>
+                            <div class="principle-spec-pill">
+                                🛡️ 위험도 P0/P1 작업 시 산소 21%±1% / 유독가스 0.00 ppm 측정 필수
+                            </div>
+                        </div>
+
+                        <!-- 원칙 3: 정품 파트 & 규격 토크 -->
+                        <div class="principle-card p-torque">
+                            <div class="principle-header">
+                                <div class="principle-icon-badge">🔩</div>
+                                <span class="principle-tag">SPEC TORQUE</span>
+                            </div>
+                            <div class="principle-name">정품 파트 및 규격 토크 준수</div>
+                            <div class="principle-desc">
+                                비인가 대체 부품 사용을 전면 금지하며, 플랜지 볼트 체결 시 지정 규격 디지털 토크 렌치를 사용하고 십자 대각 조임 순서를 엄격히 준수합니다.
+                            </div>
+                            <div class="principle-spec-pill">
+                                🔧 진공 플랜지 체결 토크 15.0 N·m (허용 오차 ±0.5 N·m)
+                            </div>
+                        </div>
+
+                        <!-- 원칙 4: 디지털 지식 피드백 -->
+                        <div class="principle-card p-loop">
+                            <div class="principle-header">
+                                <div class="principle-icon-badge">🔄</div>
+                                <span class="principle-tag">CLOSED-LOOP</span>
+                            </div>
+                            <div class="principle-name">디지털 지식 피드백 원칙</div>
+                            <div class="principle-desc">
+                                정비 완료 즉시 원인 귀속 코드, 교체 부품 시리얼, 3회 시편 검증 결과를 지식그래프에 피드백하여 AI 인과 추론 엔진을 지속 학습시킵니다.
+                            </div>
+                            <div class="principle-spec-pill">
+                                📊 시편 검증 Cpk ≥ 1.67 확보 후 AI 지식망 자동 업데이트
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 섹션 2: 표준행동절차(SOP) 5단계 라이프사이클 다이어그램 -->
+                <div class="sop-lifecycle-section">
+                    <div class="section-title-strip">
+                        <div class="title-text">
+                            <span>📋</span> 표준행동절차(SOP) 5단계 라이프사이클 워크플로우
+                        </div>
+                        <span style="font-size:11px; color:var(--text-muted);">단계를 클릭하여 세부 체크리스트 및 표준 지침을 확인하십시오</span>
+                    </div>
+
+                    <!-- 5단계 스텝 카드 트랙 -->
+                    <div class="sop-steps-track" id="sopStepsTrack"></div>
+
+                    <!-- 선택된 스텝 세부 패널 -->
+                    <div class="sop-detail-panel" id="sopDetailPanel"></div>
+                </div>
+
+                <!-- 섹션 3: 지식그래프(Knowledge Graph) 인과 분석 대시보드 -->
+                <div class="kg-dashboard-section">
+                    <div class="section-title-strip">
+                        <div class="title-text">
+                            <span>🧠</span> 정비 지식그래프(Knowledge Graph) 인과 분석 대시보드
+                        </div>
+                        <span style="font-size:11px; color:var(--text-muted);">설비 ➔ 센서 ➔ 징후 ➔ 근본원인 ➔ 조치SOP ➔ 부품/공구/인력 인과 그래프</span>
+                    </div>
+
+                    <!-- 툴바 및 필터 -->
+                    <div class="kg-toolbar">
+                        <div class="kg-filter-group" id="kgFilterGroup">
+                            <button class="kg-filter-btn active" data-filter="ALL" onclick="window.filterKg('ALL')">전체 지식망 (21개 노드)</button>
+                            <button class="kg-filter-btn" data-filter="EQ_SEN" onclick="window.filterKg('EQ_SEN')">설비 ➔ 센서 계측망</button>
+                            <button class="kg-filter-btn" data-filter="SYM_RC" onclick="window.filterKg('SYM_RC')">결함 ➔ 근본원인 인과망</button>
+                            <button class="kg-filter-btn" data-filter="SOP_PART" onclick="window.filterKg('SOP_PART')">조치SOP ➔ 부품/인력망</button>
+                        </div>
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <div class="kg-search-box">
+                                <span style="font-size:12px; color:var(--text-muted);">🔍</span>
+                                <input type="text" id="kgSearchInput" placeholder="노드명, 부품, SOP 검색 (예: O-링, 플라즈마)..." oninput="window.searchKg(this.value)">
+                            </div>
+                            <button class="tool-btn" onclick="window.resetKgSelection()" style="padding:5px 10px; font-size:11px;">선택 초기화</button>
+                        </div>
+                    </div>
+
+                    <!-- 지식그래프 2열 그리드: SVG 캔버스 + 인스펙터 패널 -->
+                    <div class="kg-dashboard-grid">
+                        <!-- 좌측: SVG 캔버스 카드 -->
+                        <div class="kg-canvas-card">
+                            <div class="kg-canvas-header">
+                                <div style="font-size:12px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+                                    <span>🌐</span>
+                                    <span>인터랙티브 지식 네트워크 뷰포트</span>
+                                    <span id="kgActiveStatusTag" class="code-badge" style="background:rgba(0,229,255,0.15); color:var(--bus-sensor);">노드를 클릭하여 연관 인과망 탐색</span>
+                                </div>
+                                <div class="kg-legend-strip">
+                                    <div class="kg-legend-item"><span class="kg-legend-dot" style="background:#38bdf8;"></span> 설비(EQ)</div>
+                                    <div class="kg-legend-item"><span class="kg-legend-dot" style="background:#00e5ff;"></span> 센서(SEN)</div>
+                                    <div class="kg-legend-item"><span class="kg-legend-dot" style="background:#f59e0b;"></span> 징후(SYM)</div>
+                                    <div class="kg-legend-item"><span class="kg-legend-dot" style="background:#ef4444;"></span> 원인(RC)</div>
+                                    <div class="kg-legend-item"><span class="kg-legend-dot" style="background:#f97316;"></span> 조치(SOP)</div>
+                                    <div class="kg-legend-item"><span class="kg-legend-dot" style="background:#10b981;"></span> 부품/공구</div>
+                                    <div class="kg-legend-item"><span class="kg-legend-dot" style="background:#a855f7;"></span> 담당자</div>
+                                </div>
+                            </div>
+                            <div class="kg-svg-container" id="kgSvgContainer">
+                                <svg id="kgSvgCanvas" viewBox="0 0 1180 560" preserveAspectRatio="xMidYMid meet" style="width:100%; height:520px; display:block;"></svg>
+                            </div>
+                        </div>
+
+                        <!-- 우측: 지식 인스펙터 카드 -->
+                        <div class="kg-inspector-card" id="kgInspectorCard"></div>
+                    </div>
+                </div>
+
+                <!-- 섹션 4: 현장 점검 및 정비 작업지시 원장 (Work Order Ledger) -->
+                <div class="task-ledger-card" id="taskLedgerCard">
+                    <div class="task-ledger-header">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span style="font-size:15px; font-weight:700; color:var(--text-primary);">현장 점검 및 정비 작업지시 원장 (Work Order Ledger)</span>
+                            <span id="taskCountBadge" class="code-badge" style="background:rgba(249,115,22,0.15); color:var(--bus-sop);">3건 등록</span>
+                        </div>
+                        <div style="display:flex; gap:8px;">
+                            <button id="openTaskModalBtn" class="tool-btn" style="background:var(--bus-sop); color:#fff; border:none; font-weight:600;">+ 신규 점검 작업 등록</button>
+                        </div>
+                    </div>
+                    <div style="max-height:360px; overflow-y:auto;">
                         <table class="benchmark-table">
                             <thead>
                                 <tr>
@@ -548,26 +730,6 @@
                             </thead>
                             <tbody id="taskListTableBody"></tbody>
                         </table>
-                    </div>
-                </div>
-
-                <div class="task-sop-section">
-                    <div style="font-size:15px; font-weight:700;">현장 비상 안전 표준행동절차 (SOP) 가이드</div>
-                    <div class="sop-step-node">
-                        <strong>1단계. 경보 감지 및 현장 육안 확인</strong>
-                        <p style="color:var(--text-secondary); margin-top:4px;">금속 통신 버스 수신 지연 또는 진공/온도 이상 감지 시 현장 계측 게이지와 즉시 대조 점검을 실시합니다.</p>
-                    </div>
-                    <div class="sop-step-node">
-                        <strong>2단계. 긴급 안전 인터록(차단) 가동</strong>
-                        <p style="color:var(--text-secondary); margin-top:4px;">압력 급상승 또는 반응가스 누출 위험 시 안전 차단 밸브를 즉시 닫고 비상 배기 시스템을 가동합니다.</p>
-                    </div>
-                    <div class="sop-step-node">
-                        <strong>3단계. 정비 작업지시 발행 및 관리자 승인</strong>
-                        <p style="color:var(--text-secondary); margin-top:4px;">정비 부품 수급을 확인한 후 공정관리자의 안전 작업허가(PTW) 서명을 득하고 작업에 투입합니다.</p>
-                    </div>
-                    <div class="sop-step-node">
-                        <strong>4단계. 조치 후 시편 품질 검증 및 라인 복구</strong>
-                        <p style="color:var(--text-secondary); margin-top:4px;">시험용 웨이퍼/시편을 3회 연속 테스트하여 규격 정합성을 확인한 후 양산 투입 복구를 승인합니다.</p>
                     </div>
                 </div>
             </div>

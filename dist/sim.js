@@ -89,6 +89,12 @@
             { id: '작업-2027-0105', eqId: 'EQ_SEMI_07', eqName: '화학기계적 연마기(CMP)', priority: 'P1 점검', title: '연마 패드 잔여 수명 측정 및 슬러리 유량 교정', assignee: '박공정 선임', status: 'PENDING_APPROVAL', date: '2027-01-05' },
             { id: '작업-2027-0109', eqId: 'EQ_SEMI_05', eqName: 'ICP 고밀도 플라즈마 식각기', priority: 'P2 계획', title: '정기 챔버 세정 및 정전척(ESC) 헬륨 리크 검사', assignee: '이수석 기술원', status: 'COMPLETED', date: '2027-01-09' }
         ],
+
+        // 지식그래프 및 SOP 라이프사이클 상태
+        selectedKgNode: 'sop-01',
+        kgFilter: 'ALL',
+        kgSearchQuery: '',
+        selectedSopStep: 1,
         
         // 공지 및 안전 현황
         safeDays: 428,
@@ -1647,10 +1653,472 @@
         alert("[AI 최적 운전조건 도출 결과]\n\n• 공정 온도: -1.5°C 조정\n• 챔버 압력: -0.8% 조정\n• RF 플라즈마 전력: -5.0W 조정\n\n위 조건 적용 시 품질 편차율이 0.082로 최소화되며, 실행당 0.25kWh의 전력 절감이 예상됩니다.");
     }
 
-    // 9. 정비 협업 및 현장 SOP 뷰 렌더링
-    function renderTaskView() {
+    // ==========================================================================
+    // 9. 정비 협업 및 현장 SOP: 지식그래프 관제 대시보드 및 라이프사이클 엔진
+    // ==========================================================================
+
+    // 지식그래프 21개 노드 정의
+    const kgNodes = [
+        // 1. 설비 (EQ)
+        { id: 'eq-pecvd', label: 'PECVD 플라즈마 증착기', cat: 'EQ', icon: '🏭', desc: '웨이퍼 표면에 절연막(SiO₂/Si₃N₄)을 고온 플라즈마로 증착하는 핵심 공정 설비', x: 90, y: 70, color: '#38bdf8' },
+        { id: 'eq-icp', label: 'ICP 고밀도 식각기', cat: 'EQ', icon: '⚡', desc: '수십 나노미터 급 초미세 회로 패턴 형성을 위한 건식 식각 챔버 설비', x: 90, y: 200, color: '#38bdf8' },
+        { id: 'eq-cmp', label: 'CMP 화학기계적 연마기', cat: 'EQ', icon: '⚙️', desc: '슬러리와 폴리우레탄 패드를 이용해 웨이퍼 표면을 나노 단위로 평탄화하는 연마 설비', x: 90, y: 330, color: '#38bdf8' },
+        { id: 'eq-sputter', label: '스퍼터(Sputter) 금속 증착기', cat: 'EQ', icon: '🔬', desc: 'Ar 이온 타격으로 타깃 금속 원자를 튕겨내어 배선 박막을 형성하는 고진공 물리 증착기', x: 90, y: 460, color: '#38bdf8' },
+
+        // 2. 센서/지표 (SEN)
+        { id: 'sen-press', label: '챔버 진공 압력 센서', cat: 'SEN', icon: '📡', desc: '정밀 커패시턴스 마노미터 및 피라니 게이지 (정격: 1.2×10⁻³ Torr, 오차 ±0.05)', x: 285, y: 70, color: '#00e5ff' },
+        { id: 'sen-rf', label: 'RF 반사파 전력 센서', cat: 'SEN', icon: '📶', desc: '플라즈마 정합기 내 인라인 방향성 결합기 (반사파율 임계치: < 2.5%, 13.56MHz)', x: 285, y: 200, color: '#00e5ff' },
+        { id: 'sen-he', label: '정전척 헬륨 냉각 압력계', cat: 'SEN', icon: '🌡️', desc: 'ESC 후면 헬륨 배압(Backside Helium Pressure) 모니터링 (공차: 8.0±0.4 Torr)', x: 285, y: 330, color: '#00e5ff' },
+        { id: 'sen-slurry', label: 'CMP 슬러리 유량/마찰 센서', cat: 'SEN', icon: '📊', desc: '헤드 모터 구동 전류 및 슬러리 질량 유량계(MFC) (정격 유량: 250±5 ml/min)', x: 285, y: 460, color: '#00e5ff' },
+
+        // 3. 결함 징후 (SYM)
+        { id: 'sym-leak', label: '진공 챔버 미세 누설(Leak)', cat: 'SYM', icon: '⚠️', desc: '베이스 진공 도달 지연 (도달시간 정상 대비 +45% 초과), 압력 드리프트 발생', x: 480, y: 70, color: '#f59e0b' },
+        { id: 'sym-arc', label: '플라즈마 아크 방전·불안정', cat: 'SYM', icon: '⚡', desc: '발광 스펙트럼(OES) 이상 피크 발생 및 RF 임피던스 미스매칭 위상각 진동', x: 480, y: 200, color: '#f59e0b' },
+        { id: 'sym-temp', label: '웨이퍼 국소 온도 불균일', cat: 'SYM', icon: '🔥', desc: '정전척 외곽 에지(Edge) 온도 급상승 (정상 대비 +8.4°C), 에칭 깊이 편차 유발', x: 480, y: 330, color: '#f59e0b' },
+        { id: 'sym-glaze', label: '연마 패드 표면 글레이징', cat: 'SYM', icon: '📉', desc: '패드 미세 기공 폐색 및 연마율(Removal Rate) 14.5% 급감, 웨이퍼 마찰 스크래치 위험', x: 480, y: 460, color: '#f59e0b' },
+
+        // 4. 근본 원인 (RC)
+        { id: 'rc-oring', label: '플랜지 O-링 고온 열화 경화', cat: 'RC', icon: '🔍', desc: '플라즈마 반응열 및 불소계 라디칼에 의한 불소탄성체 탄화 및 영구 압축 변형', x: 675, y: 70, color: '#ef4444' },
+        { id: 'rc-cap', label: '정합기 진공 커패시터 편차', cat: 'RC', icon: '🔍', desc: 'RF 파워 매칭 박스 내 가변 진공 커패시터 기계적 축 마모로 인한 정전용량 이탈', x: 675, y: 200, color: '#ef4444' },
+        { id: 'rc-seal', label: 'ESC 헬륨 실링 패킹 크랙', cat: 'RC', icon: '🔍', desc: '웨이퍼 척킹/디척킹 반복 열응력에 기인한 세라믹-엘라스토머 계면 미세 균열', x: 675, y: 330, color: '#ef4444' },
+        { id: 'rc-disk', label: '컨디셔너 디스크 다이아 마모', cat: 'RC', icon: '🔍', desc: 'CMP 다이아몬드 컨디셔너 디스크 입자 탈락 및 평탄화로 패드 그루브 재생 불가', x: 675, y: 460, color: '#ef4444' },
+
+        // 5. 조치 SOP (SOP)
+        { id: 'sop-01', label: 'SOP-01: O-링 교체·He 리크 검사', cat: 'SOP', icon: '📘', desc: 'LOTO 차단 ➔ N₂ 퍼지 ➔ 챔버 개방 ➔ FFKM O-링 교체 (15N·m 체결) ➔ He 리크 테스트 (< 1.0×10⁻⁹ Torr·L/s)', x: 870, y: 70, color: '#f97316' },
+        { id: 'sop-02', label: 'SOP-02: RF 매처 위상각 영점 교정', cat: 'SOP', icon: '📘', desc: 'LOTO 차단 ➔ 더미 로드(50Ω) 체결 ➔ 스트로크 모터 원점 캘리브레이션 ➔ 반사파율 < 0.5% 복구', x: 870, y: 200, color: '#f97316' },
+        { id: 'sop-03', label: 'SOP-03: ESC 헬륨 실링 재체결', cat: 'SOP', icon: '📘', desc: 'ESC 하부 모듈 탈거 ➔ 세라믹 표면 에탄올 세정 ➔ 고내열 실링 패킹 교체 ➔ 차압 유지력 3회 시험', x: 870, y: 330, color: '#f97316' },
+        { id: 'sop-04', label: 'SOP-04: 연마 패드 교체·노즐 세정', cat: 'SOP', icon: '📘', desc: '플래튼 세정 ➔ IC1000 패드 균일 압착 부착 (2.5 bar) ➔ 컨디셔너 교체 ➔ 30분 브레이크인 시운전', x: 870, y: 460, color: '#f97316' },
+
+        // 6. 소요 부품/공구 (PART/TOOL)
+        { id: 'part-oring', label: 'FFKM 내열 O-링 세트', cat: 'PART', icon: '🔩', desc: '규격: AS568-342 (내열 320°C, 반도체 플라즈마 공정 인증 정품 부품)', x: 1070, y: 45, color: '#10b981' },
+        { id: 'tool-torque', label: '15 N·m 디지털 토크 렌치', cat: 'TOOL', icon: '🔧', desc: '오차 ±0.5% 이내 공인 교정 완료, 무선 체결 토크 데이터 자동 로깅 지원', x: 1070, y: 175, color: '#10b981' },
+        { id: 'tool-leak', label: '헬륨 질량분석 리크 검출기', cat: 'TOOL', icon: '🔬', desc: '초고감도 진공 리크 디텍터 (감도 1.0×10⁻¹¹ Torr·L/s, 정밀 스프레이 프로브)', x: 1070, y: 305, color: '#10b981' },
+        { id: 'part-pad', label: '30인치 IC1000 그루브 패드', cat: 'PART', icon: '📦', desc: '미세 다공성 폴리우레탄 연마 패드 (제조사 바코드 인증 정품)', x: 1070, y: 435, color: '#10b981' },
+
+        // 7. 담당자 (PER)
+        { id: 'per-vac', label: '김정비 책임 (진공 특화)', cat: 'PER', icon: '👤', desc: '진공 챔버 및 배관 계통 12년 경력 전문 기술자, LOTO 작업자 1차 승인자', x: 1070, y: 105, color: '#a855f7' },
+        { id: 'per-rf', label: '박고주파 수석 (RF 전력)', cat: 'PER', icon: '👤', desc: '13.56MHz 고주파 발진기 및 매칭 네트워크 임피던스 제어 전문 수석 연구원', x: 1070, y: 235, color: '#a855f7' },
+        { id: 'per-cmp', label: '이연마 선임 (CMP 평탄화)', cat: 'PER', icon: '👤', desc: '웨이퍼 평탄화 공정 및 슬러리 공급계통 전문 정비 기술원', x: 1070, y: 365, color: '#a855f7' },
+        { id: 'per-safety', label: '최안전 관리자 (환경안전)', cat: 'PER', icon: '🛡️', desc: '공장 환경안전 총괄 관리자, LOTO 차단 확인 및 PTW 전자 서명 승인권자', x: 1070, y: 495, color: '#a855f7' }
+    ];
+
+    // 지식그래프 28개 인과 관계 엣지 정의
+    const kgEdges = [
+        // 설비 ➔ 센서 (계측)
+        { source: 'eq-pecvd', target: 'sen-press', rel: '진공 계측' },
+        { source: 'eq-pecvd', target: 'sen-rf', rel: 'RF 전력 계측' },
+        { source: 'eq-icp', target: 'sen-rf', rel: '플라즈마 계측' },
+        { source: 'eq-icp', target: 'sen-he', rel: '헬륨 압력 계측' },
+        { source: 'eq-cmp', target: 'sen-slurry', rel: '슬러리/마찰 계측' },
+        { source: 'eq-sputter', target: 'sen-press', rel: '고진공 계측' },
+
+        // 센서 ➔ 결함 징후 (감지)
+        { source: 'sen-press', target: 'sym-leak', rel: '진공 지연 감지' },
+        { source: 'sen-rf', target: 'sym-arc', rel: '반사파 급증 감지' },
+        { source: 'sen-he', target: 'sym-temp', rel: '온도 불균일 감지' },
+        { source: 'sen-slurry', target: 'sym-glaze', rel: '패드 마모 감지' },
+
+        // 결함 징후 ➔ 근본 원인 (인과)
+        { source: 'sym-leak', target: 'rc-oring', rel: 'O-링 열화 귀속' },
+        { source: 'sym-arc', target: 'rc-cap', rel: '커패시터 편차 귀속' },
+        { source: 'sym-temp', target: 'rc-seal', rel: '실링 크랙 귀속' },
+        { source: 'sym-glaze', target: 'rc-disk', rel: '디스크 마모 귀속' },
+
+        // 근본 원인 ➔ 조치 SOP (처방)
+        { source: 'rc-oring', target: 'sop-01', rel: '표준 조치 적용' },
+        { source: 'rc-cap', target: 'sop-02', rel: '영점 교정 적용' },
+        { source: 'rc-seal', target: 'sop-03', rel: '실링 재체결 적용' },
+        { source: 'rc-disk', target: 'sop-04', rel: '패드 교체 적용' },
+
+        // 조치 SOP ➔ 부품/공구 (소요)
+        { source: 'sop-01', target: 'part-oring', rel: '정품 O-링 투입' },
+        { source: 'sop-01', target: 'tool-torque', rel: '15N·m 토크 체결' },
+        { source: 'sop-01', target: 'tool-leak', rel: '리크 검출기 사용' },
+        { source: 'sop-02', target: 'tool-torque', rel: '규격 토크 조임' },
+        { source: 'sop-03', target: 'tool-torque', rel: '토크 렌치 체결' },
+        { source: 'sop-03', target: 'tool-leak', rel: '차압 리크 검사' },
+        { source: 'sop-04', target: 'part-pad', rel: 'IC1000 신품 교체' },
+
+        // 조치 SOP ➔ 담당자 (배정 및 승인)
+        { source: 'sop-01', target: 'per-vac', rel: '정비 작업 배정' },
+        { source: 'sop-01', target: 'per-safety', rel: 'PTW 승인' },
+        { source: 'sop-02', target: 'per-rf', rel: 'RF 기술원 배정' },
+        { source: 'sop-03', target: 'per-vac', rel: '진공 기술원 배정' },
+        { source: 'sop-04', target: 'per-cmp', rel: 'CMP 정비원 배정' },
+        { source: 'sop-04', target: 'per-safety', rel: '안전 확인 배정' }
+    ];
+
+    // 표준행동절차(SOP) 5단계 라이프사이클 정의
+    const sopLifecycleSteps = [
+        {
+            step: 1,
+            name: '1단계. 이상 감지 및 원인 귀속',
+            summary: '텔레메트리 파라미터 3시그마 이탈 감지 및 지식그래프 원인 자동 추론',
+            dept: '공정 제어실 (생산기술팀)',
+            safetyRating: '관제 레벨 (온라인 진단)',
+            spec: '경보 발생 5분 이내 심각도 분류 (P0 긴급 ~ P2 계획)',
+            checklist: [
+                '센서 텔레메트리 관리 한계선(UCL/LCL) 이탈 여부 크로스 체크',
+                '지식그래프 기반 근본 원인 후보 자동 매핑 및 신뢰도 점검',
+                '현장 운영 엔지니어 1차 통보 및 위험 설비 가동 일시 보류'
+            ]
+        },
+        {
+            step: 2,
+            name: '2단계. 작업허가(PTW) 및 LOTO 격리',
+            summary: '3자 전자 서명 안전작업허가 발급, 전원/공압 3중 패드락 차단, 유독가스 퍼지',
+            dept: '환경안전팀 & 설비 보전팀',
+            safetyRating: 'LOTO 1등급 절대 물리 차단',
+            spec: '잔류 가스 N₂ 퍼지 5회 / 산소 농도 21%±1% / 유독가스 0.00 ppm',
+            checklist: [
+                '공정 엔지니어, 설비 책임자, 환경안전관리자 3자 전자인증(Digital Tri-Sign)',
+                '주 전원 회로 차단기(MCCB) 개방 및 전용 패드락(Padlock) 시건 체결',
+                '공압 공급 밸브 벤트 배기 및 유독가스 라인 이중 블록 밸브 차단'
+            ]
+        },
+        {
+            step: 3,
+            name: '3단계. 표준 정비 및 규격 체결',
+            summary: '인증 정품 부품 투입, 디지털 토크 렌치 15 N·m 정밀 체결, 챔버 드라이 세정',
+            dept: '전문 정비 보전팀',
+            safetyRating: '클린룸 방진복 & 내화학 보호구',
+            spec: '체결 토크 15.0 N·m (허용 오차 ±0.5 N·m) / 십자 대각 조임',
+            checklist: [
+                '제조사 바코드 인증 정품 부품(FFKM/IC1000 패드 등) 일치 확인',
+                '디지털 토크 렌치 블루투스 연동 및 십자 대각 체결 이력 자동 로깅',
+                '챔버 실링 플랜지 무수에탄올 정밀 세정 및 잔류 파티클 제로화'
+            ]
+        },
+        {
+            step: 4,
+            name: '4단계. 시편 시험 및 Cpk 검증',
+            summary: '테스트 웨이퍼/패널 3회 연속 시험가동, 두께 균일도 및 Cpk ≥ 1.67 정합성 확인',
+            dept: '공정 품질 분석실 (QA/QC)',
+            safetyRating: '시험 생산 검증 레벨',
+            spec: '3회 연속 샘플 Cpk 1.67 이상 / 박막 두께 균일도 99.8% 달성',
+            checklist: [
+                '테스트 웨이퍼 3매 연속 생산 투입 및 텔레메트리 실시간 안정화 확인',
+                '분광 엘립소미터 박막 두께 및 굴절률(RI) 허용 공차 정합성 계측',
+                '품질 보증 엔지니어 공정능력지수(Cpk) 최종 합격 서명 완료'
+            ]
+        },
+        {
+            step: 5,
+            name: '5단계. 양산 복구 및 지식화 피드백',
+            summary: '설비 인터록 정상 해제, 양산 투입 재개, 정비 이력 및 해결 노하우 지식그래프 영구 등재',
+            dept: '라인 총괄 운영실',
+            safetyRating: '정상 가동 복구 완료',
+            spec: 'AI 인과그래프 자동 업데이트 / 평균 수리시간(MTTR) 집계',
+            checklist: [
+                'LOTO 물리 패드락 해제 및 비상 안전 인터록 정상 감지 시운전',
+                'MES/ERP 생산 계획 연동을 통한 양산 랏(Lot) 투입 즉시 재개',
+                '작업 소요시간, 교체 부품 시리얼, 원인 분석 지식베이스 영구 피드백'
+            ]
+        }
+    ];
+
+    // SOP 5단계 라이프사이클 렌더링
+    function renderSopLifecycle() {
+        const trackEl = document.getElementById('sopStepsTrack');
+        const detailEl = document.getElementById('sopDetailPanel');
+        if (!trackEl || !detailEl) return;
+
+        trackEl.innerHTML = sopLifecycleSteps.map(s => `
+            <div class="sop-step-tile ${state.selectedSopStep === s.step ? 'active' : ''}" onclick="window.selectSopLifecycleStep(${s.step})">
+                <div class="sop-step-tile-top">
+                    <span class="sop-step-number">STEP 0${s.step}</span>
+                    <span style="font-size:12px; color:var(--text-muted);">${state.selectedSopStep === s.step ? '●' : '○'}</span>
+                </div>
+                <div class="sop-step-name">${s.name.replace(/^\d단계\.\s*/, '')}</div>
+                <div class="sop-step-brief">${s.summary}</div>
+            </div>
+        `).join('');
+
+        const cur = sopLifecycleSteps.find(s => s.step === state.selectedSopStep) || sopLifecycleSteps[0];
+        detailEl.innerHTML = `
+            <div class="sop-detail-header">
+                <div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="code-badge" style="background:rgba(249,115,22,0.18); color:var(--bus-sop); font-weight:700;">${cur.name}</span>
+                        <span style="font-size:14px; font-weight:700; color:var(--text-primary);">${cur.summary}</span>
+                    </div>
+                    <div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                        주관 부서: <strong style="color:var(--text-accent);">${cur.dept}</strong> · 안전 관리 등급: <strong style="color:var(--color-alert);">${cur.safetyRating}</strong>
+                    </div>
+                </div>
+                <div class="principle-spec-pill" style="font-size:11px;">
+                    🎯 표준 규격 기준: ${cur.spec}
+                </div>
+            </div>
+            <div class="sop-detail-check-grid">
+                ${cur.checklist.map((item, i) => `
+                    <div class="sop-check-item">
+                        <span style="color:var(--color-normal); font-size:14px; font-weight:800;">✓</span>
+                        <span>[확인 ${i + 1}] ${item}</span>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    window.selectSopLifecycleStep = function (stepNum) {
+        state.selectedSopStep = stepNum;
+        renderSopLifecycle();
+    };
+
+    // 지식그래프 SVG 렌더링
+    function renderKnowledgeGraph() {
+        const svgEl = document.getElementById('kgSvgCanvas');
+        const statusTag = document.getElementById('kgActiveStatusTag');
+        if (!svgEl) return;
+
+        const selectedId = state.selectedKgNode;
+        const filterType = state.kgFilter;
+        const query = state.kgSearchQuery;
+
+        // 필터링 적용 노드 결정
+        let visibleNodeIds = new Set(kgNodes.map(n => n.id));
+        if (filterType === 'EQ_SEN') {
+            visibleNodeIds = new Set(kgNodes.filter(n => n.cat === 'EQ' || n.cat === 'SEN').map(n => n.id));
+        } else if (filterType === 'SYM_RC') {
+            visibleNodeIds = new Set(kgNodes.filter(n => n.cat === 'SYM' || n.cat === 'RC').map(n => n.id));
+        } else if (filterType === 'SOP_PART') {
+            visibleNodeIds = new Set(kgNodes.filter(n => n.cat === 'SOP' || n.cat === 'PART' || n.cat === 'TOOL' || n.cat === 'PER').map(n => n.id));
+        }
+
+        if (query) {
+            const matched = kgNodes.filter(n => n.label.toLowerCase().includes(query) || n.desc.toLowerCase().includes(query) || n.cat.toLowerCase().includes(query));
+            visibleNodeIds = new Set(matched.map(n => n.id));
+        }
+
+        // 선택 노드 기반 연관 노드 및 엣지 세트 계산
+        const connectedNodeIds = new Set();
+        const activeEdgeIndices = new Set();
+
+        if (selectedId) {
+            connectedNodeIds.add(selectedId);
+            // 1차 연결 (인접 노드)
+            kgEdges.forEach((e, idx) => {
+                if (e.source === selectedId) {
+                    connectedNodeIds.add(e.target);
+                    activeEdgeIndices.add(idx);
+                } else if (e.target === selectedId) {
+                    connectedNodeIds.add(e.source);
+                    activeEdgeIndices.add(idx);
+                }
+            });
+            // 2차 연결 (인과 경로 확장)
+            kgEdges.forEach((e, idx) => {
+                if (connectedNodeIds.has(e.source) && !connectedNodeIds.has(e.target)) {
+                    connectedNodeIds.add(e.target);
+                    activeEdgeIndices.add(idx);
+                } else if (connectedNodeIds.has(e.target) && !connectedNodeIds.has(e.source)) {
+                    connectedNodeIds.add(e.source);
+                    activeEdgeIndices.add(idx);
+                }
+            });
+        }
+
+        if (statusTag) {
+            if (selectedId) {
+                const selNode = kgNodes.find(n => n.id === selectedId);
+                statusTag.innerText = `선택: [${selNode ? selNode.label : selectedId}] · 연관 인과 노드 ${connectedNodeIds.size}개 및 엣지 ${activeEdgeIndices.size}개 활성`;
+                statusTag.style.background = 'rgba(249,115,22,0.2)';
+                statusTag.style.color = 'var(--bus-sop)';
+            } else {
+                statusTag.innerText = '노드를 클릭하여 연관 인과망 탐색';
+                statusTag.style.background = 'rgba(0,229,255,0.15)';
+                statusTag.style.color = 'var(--bus-sensor)';
+            }
+        }
+
+        // 엣지 SVG 패스 생성
+        const edgesHtml = kgEdges.map((e, idx) => {
+            const s = kgNodes.find(n => n.id === e.source);
+            const t = kgNodes.find(n => n.id === e.target);
+            if (!s || !t) return '';
+
+            const sWidth = (s.cat === 'PART' || s.cat === 'TOOL' || s.cat === 'PER') ? 140 : 160;
+            const tWidth = (t.cat === 'PART' || t.cat === 'TOOL' || t.cat === 'PER') ? 140 : 160;
+
+            const sx = s.x + sWidth / 2;
+            const sy = s.y;
+            const tx = t.x - tWidth / 2;
+            const ty = t.y;
+            const dx = Math.max(30, (tx - sx) * 0.45);
+
+            const pathD = `M ${sx} ${sy} C ${sx + dx} ${sy}, ${tx - dx} ${ty}, ${tx} ${ty}`;
+            const isActive = activeEdgeIndices.has(idx);
+            const isDimmed = selectedId && !isActive;
+
+            return `
+                <path d="${pathD}" 
+                      class="kg-edge ${isActive ? 'active' : ''} ${isDimmed ? 'dimmed' : ''}" 
+                      marker-end="${isActive ? 'url(#kgArrowActive)' : 'url(#kgArrow)'}" />
+            `;
+        }).join('');
+
+        // 노드 SVG 카드 생성
+        const nodesHtml = kgNodes.map(n => {
+            const isVisible = visibleNodeIds.has(n.id);
+            const isSelected = selectedId === n.id;
+            const isConnected = selectedId && connectedNodeIds.has(n.id) && !isSelected;
+            const isDimmed = !isVisible || (selectedId && !isSelected && !isConnected);
+
+            const width = (n.cat === 'PART' || n.cat === 'TOOL' || n.cat === 'PER') ? 140 : 160;
+            const height = 40;
+            const rx = 6;
+            const ry = 6;
+            const x = n.x - width / 2;
+            const y = n.y - height / 2;
+
+            return `
+                <g class="kg-node-g ${isSelected ? 'active' : ''} ${isConnected ? 'connected' : ''} ${isDimmed ? 'dimmed' : ''}" 
+                   onclick="window.selectKgNode('${n.id}')"
+                   transform="translate(0, 0)">
+                    <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${rx}" ry="${ry}" 
+                          fill="#14202c" stroke="${n.color}" stroke-width="${isSelected ? '2.5' : (isConnected ? '2' : '1.2')}" />
+                    <text x="${x + 12}" y="${y + 25}" font-size="15">${n.icon}</text>
+                    <text x="${x + 34}" y="${y + 24}" fill="#e6edf3" font-size="11" font-weight="600">${n.label.length > 14 ? n.label.slice(0, 13) + '…' : n.label}</text>
+                    <text x="${x + width - 8}" y="${y + 14}" fill="${n.color}" font-size="8.5" text-anchor="end" font-weight="700">${n.cat}</text>
+                </g>
+            `;
+        }).join('');
+
+        svgEl.innerHTML = `
+            <defs>
+                <marker id="kgArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#334d66" />
+                </marker>
+                <marker id="kgArrowActive" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                    <path d="M 0 1 L 9 5 L 0 9 z" fill="#f97316" />
+                </marker>
+            </defs>
+            <g class="kg-edges-layer">${edgesHtml}</g>
+            <g class="kg-nodes-layer">${nodesHtml}</g>
+        `;
+    }
+
+    // 지식 인스펙터 패널 렌더링
+    function renderKnowledgeInspector() {
+        const cardEl = document.getElementById('kgInspectorCard');
+        if (!cardEl) return;
+
+        const selectedId = state.selectedKgNode;
+        if (!selectedId) {
+            cardEl.innerHTML = `
+                <div class="kg-inspector-empty">
+                    <span style="font-size:36px; opacity:0.4;">🧠</span>
+                    <strong style="color:var(--text-primary); font-size:14px;">선택된 지식 노드가 없습니다</strong>
+                    <span style="font-size:12px;">좌측 지식그래프에서 노드를 클릭하면 인과 관계망과 권장 표준 조치(SOP), 부품/공구 및 담당자를 확인할 수 있습니다.</span>
+                </div>
+            `;
+            return;
+        }
+
+        const node = kgNodes.find(n => n.id === selectedId);
+        if (!node) return;
+
+        // 선행 연결 노드 (나에게로 들어오는 엣지)
+        const inNodes = kgEdges.filter(e => e.target === selectedId).map(e => ({
+            edge: e,
+            node: kgNodes.find(n => n.id === e.source)
+        })).filter(x => x.node);
+
+        // 후행 연결 노드 (나로부터 나가는 엣지)
+        const outNodes = kgEdges.filter(e => e.source === selectedId).map(e => ({
+            edge: e,
+            node: kgNodes.find(n => n.id === e.target)
+        })).filter(x => x.node);
+
+        // 도메인 지침 매핑
+        let principleText = "정비 작업 시 전기·공압 LOTO 물리 차단 및 작업허가(PTW) 교차 승인을 확인하십시오.";
+        if (node.cat === 'EQ') principleText = "실시간 금속 표면파 센서 텔레메트리 연동 설비 · 비계획 다운타임 방지 집중 감시 중";
+        else if (node.cat === 'SEN') principleText = "정격 공차 한계선(UCL/LCL) 3시그마 관리 및 금속 표면파 실시간 고속 전송 중";
+        else if (node.cat === 'SYM') principleText = "AI 이상 징후 자동 탐지 · 심각도 P0~P2 신속 분류 및 인터록 연동 상태";
+        else if (node.cat === 'RC') principleText = "AI 인과 추론 신뢰도 99.2% 귀속 · 동일 원인 재발 방지 피드백 루프 적용";
+        else if (node.cat === 'SOP') principleText = "LOTO 절대 물리 격리 원칙 & 규격 디지털 토크 렌치 15.0 N·m 준수 필수";
+        else if (node.cat === 'PART' || node.cat === 'TOOL') principleText = "반도체 플라즈마 공인 인증 정품 자재 및 연례 교정 필증 공구 사용 의무";
+        else if (node.cat === 'PER') principleText = "EHS 환경안전 인증 기술 자격 보유자 · 작업허가서 전자 서명 필수";
+
+        cardEl.innerHTML = `
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid var(--border-color); padding-bottom:12px;">
+                <div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span class="code-badge" style="background:${node.color}22; color:${node.color}; font-weight:700;">${node.cat}</span>
+                        <span style="font-size:11px; color:var(--text-muted); font-family:var(--font-mono);">${node.id}</span>
+                    </div>
+                    <div style="font-size:16px; font-weight:800; color:var(--text-primary); margin-top:4px; display:flex; align-items:center; gap:6px;">
+                        <span>${node.icon}</span>
+                        <span>${node.label}</span>
+                    </div>
+                </div>
+                <button class="tool-btn" onclick="window.resetKgSelection()" style="padding:3px 8px; font-size:11px;">닫기</button>
+            </div>
+
+            <!-- 핵심 설명 -->
+            <div style="font-size:12px; color:var(--text-secondary); line-height:1.5; background:var(--bg-surface-elevated); padding:10px 12px; border-radius:6px; border:1px solid var(--border-color);">
+                ${node.desc}
+            </div>
+
+            <!-- 선행 인과 관계 -->
+            <div class="kg-rel-box">
+                <span class="kg-rel-label">선행 연결 (원인 / 계측 센서 / 대상 설비)</span>
+                ${inNodes.length > 0 ? `
+                    <div class="kg-rel-pill-list">
+                        ${inNodes.map(x => `
+                            <div class="kg-rel-pill" onclick="window.selectKgNode('${x.node.id}')" title="${x.edge.rel}">
+                                <span>${x.node.icon}</span>
+                                <strong>${x.node.label}</strong>
+                                <span style="font-size:9px; color:var(--text-muted);">(${x.edge.rel})</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <span style="font-size:11px; color:var(--text-muted);">최상위 원천 노드 (선행 연결 없음)</span>
+                `}
+            </div>
+
+            <!-- 후행 인과 관계 -->
+            <div class="kg-rel-box">
+                <span class="kg-rel-label">후행 연결 (조치 SOP / 소요 부품 / 담당자)</span>
+                ${outNodes.length > 0 ? `
+                    <div class="kg-rel-pill-list">
+                        ${outNodes.map(x => `
+                            <div class="kg-rel-pill" onclick="window.selectKgNode('${x.node.id}')" title="${x.edge.rel}">
+                                <span>${x.node.icon}</span>
+                                <strong>${x.node.label}</strong>
+                                <span style="font-size:9px; color:var(--text-muted);">(${x.edge.rel})</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <span style="font-size:11px; color:var(--text-muted);">최하위 실행 노드 (후행 연결 없음)</span>
+                `}
+            </div>
+
+            <!-- 안전 및 표준 준수 지침 -->
+            <div style="background:rgba(249,115,22,0.08); border:1px solid rgba(249,115,22,0.25); border-radius:6px; padding:10px 12px;">
+                <div style="font-size:11px; font-weight:700; color:var(--bus-sop); margin-bottom:4px;">🛡️ 안전 및 표준운영원칙 준수 기준</div>
+                <div style="font-size:11.5px; color:var(--text-primary); line-height:1.4;">${principleText}</div>
+            </div>
+
+            <!-- 작업 발행 버튼 -->
+            <button class="tool-btn" style="background:var(--bus-sop); color:#fff; border:none; padding:10px 14px; font-weight:700; font-size:12.5px; border-radius:6px; width:100%; cursor:pointer;" onclick="window.createTaskFromKnowledge('${node.id}')">
+                ⚡ 이 지식으로 현장 정비 작업 즉시 발행
+            </button>
+        `;
+    }
+
+    // 작업 원장 테이블 렌더링
+    function renderTaskLedger() {
         const tbody = document.getElementById('taskListTableBody');
+        const badge = document.getElementById('taskCountBadge');
         if (!tbody) return;
+
+        if (badge) {
+            badge.innerText = `${state.tasks.length}건 등록`;
+        }
 
         tbody.innerHTML = state.tasks.map(t => `
             <tr>
@@ -1674,23 +2142,124 @@
         `).join('');
     }
 
+    // 종합 뷰 렌더링
+    function renderTaskView() {
+        renderSopLifecycle();
+        renderKnowledgeGraph();
+        renderKnowledgeInspector();
+        renderTaskLedger();
+    }
+
+    // 인터랙션 헬퍼
+    window.selectKgNode = function (nodeId) {
+        if (state.selectedKgNode === nodeId) {
+            state.selectedKgNode = null;
+        } else {
+            state.selectedKgNode = nodeId;
+        }
+        renderKnowledgeGraph();
+        renderKnowledgeInspector();
+    };
+
+    window.filterKg = function (filterType) {
+        state.kgFilter = filterType;
+        document.querySelectorAll('#kgFilterGroup .kg-filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === filterType);
+        });
+        renderKnowledgeGraph();
+    };
+
+    window.searchKg = function (query) {
+        state.kgSearchQuery = (query || '').trim().toLowerCase();
+        renderKnowledgeGraph();
+    };
+
+    window.resetKgSelection = function () {
+        state.selectedKgNode = null;
+        state.kgFilter = 'ALL';
+        state.kgSearchQuery = '';
+        const searchInput = document.getElementById('kgSearchInput');
+        if (searchInput) searchInput.value = '';
+        document.querySelectorAll('#kgFilterGroup .kg-filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === 'ALL');
+        });
+        renderKnowledgeGraph();
+        renderKnowledgeInspector();
+    };
+
+    window.createTaskFromKnowledge = function (nodeId) {
+        const node = kgNodes.find(n => n.id === nodeId);
+        if (!node) return;
+
+        // 관련 SOP, 설비, 담당자 추론
+        let targetSop = node;
+        let targetEq = '반도체 대표 설비';
+        let targetAssignee = '김정비 책임';
+
+        if (node.cat === 'SOP') {
+            targetSop = node;
+        } else {
+            // 연결된 SOP 찾기
+            const outSop = kgEdges.find(e => e.source === nodeId && e.target.startsWith('sop-'));
+            const inSop = kgEdges.find(e => e.target === nodeId && e.source.startsWith('sop-'));
+            const matchedSopId = (outSop ? outSop.target : (inSop ? inSop.source : 'sop-01'));
+            targetSop = kgNodes.find(n => n.id === matchedSopId) || node;
+        }
+
+        if (node.id === 'eq-pecvd' || node.id === 'sen-rf' || node.id === 'rc-cap' || node.id === 'sop-02') {
+            targetEq = 'PECVD 플라즈마 증착기';
+            targetAssignee = '박고주파 수석';
+        } else if (node.id === 'eq-icp' || node.id === 'sen-he' || node.id === 'rc-seal' || node.id === 'sop-03') {
+            targetEq = 'ICP 고밀도 플라즈마 식각기';
+            targetAssignee = '이수석 기술원';
+        } else if (node.id === 'eq-cmp' || node.id === 'sen-slurry' || node.id === 'rc-disk' || node.id === 'sop-04') {
+            targetEq = '화학기계적 연마기(CMP)';
+            targetAssignee = '이연마 선임';
+        } else {
+            targetEq = '플라즈마 화학 증착기';
+            targetAssignee = '김정비 책임';
+        }
+
+        const newId = `작업-2027-${String(state.tasks.length + 101).padStart(4, '0')}`;
+        const newTask = {
+            id: newId,
+            eqId: 'EQ_SEMI_03',
+            eqName: targetEq,
+            priority: 'P0 긴급',
+            title: `[지식연계] ${targetSop.label} (근거: ${node.label})`,
+            assignee: targetAssignee,
+            status: 'PENDING_APPROVAL',
+            date: state.simDate.toISOString().slice(0, 10)
+        };
+
+        state.tasks.unshift(newTask);
+        renderTaskLedger();
+
+        // 사용자 피드백 알림 및 원장 영역 스크롤
+        alert(`[정비 지식그래프 연계 작업지시 발행 완료]\n\n• 작업번호: ${newTask.id}\n• 대상설비: ${newTask.eqName}\n• 작업명: ${newTask.title}\n• 배정자: ${newTask.assignee}\n\n작업허가(PTW) 교차 승인 후 LOTO 물리 격리 상태에서 정비를 진행하십시오.`);
+        const ledgerEl = document.getElementById('taskLedgerCard');
+        if (ledgerEl) {
+            ledgerEl.scrollIntoView({ behavior: 'smooth' });
+        }
+    };
+
     window.advanceTaskStatus = function (taskId) {
         const t = state.tasks.find(x => x.id === taskId);
         if (!t) return;
         if (t.status === 'PENDING_APPROVAL') {
             t.status = 'IN_PROGRESS';
-            t.assignee = '김정비 책임 (승인완료)';
+            t.assignee = `${t.assignee.replace(' (승인완료)', '')} (승인완료)`;
         } else if (t.status === 'IN_PROGRESS') {
             t.status = 'COMPLETED';
         }
-        renderTaskView();
+        renderTaskLedger();
     };
 
     function openNewTaskModal() {
         const title = prompt("새로운 현장 점검 및 정비 작업의 명칭을 입력하십시오:", "진공 챔버 게이지 교정 및 배관 리크 점검");
         if (!title) return;
         state.tasks.unshift({
-            id: `작업-2027-${String(state.tasks.length + 1).padStart(4, '0')}`,
+            id: `작업-2027-${String(state.tasks.length + 101).padStart(4, '0')}`,
             eqId: 'EQ_SEMI_01',
             eqName: '반도체 대표 설비',
             priority: 'P1 점검',
@@ -1699,7 +2268,7 @@
             status: 'PENDING_APPROVAL',
             date: state.simDate.toISOString().slice(0, 10)
         });
-        renderTaskView();
+        renderTaskLedger();
     }
 
     // 10. 보고서 스튜디오 (Report Studio) 5종 문서 렌더링
