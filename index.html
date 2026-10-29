@@ -321,14 +321,118 @@
                             </div>
                         </div>
 
-                        <!-- 3. 공정 인자별 특성 중요도 (Feature Importance) 및 파레토 누적 기여율 -->
+                        <!-- 3. 공정변수별 영향도 & 민감도 분석 종합 대시보드 (Multi-View Dashboard) -->
                         <div class="card-block">
                             <div class="card-block-title">
-                                <span>🎯 6대 공정 변수별 영향도 분석 (특성 중요도 & 파레토 누적 기여율)</span>
-                                <span style="font-size:11px; color:var(--bus-sensor);">상위 2개 인자(온도+압력)가 전체 품질 변동의 64.0% 지배 (핵심 관리점 CCP)</span>
+                                <span>🎯 공정변수별 영향도 & 민감도 분석 종합 대시보드</span>
+                                <div style="display:flex; gap:8px;">
+                                    <span class="context-tag" style="border-color:var(--bus-sensor); color:var(--bus-sensor);">최우선 CCP: <strong>온도(34.2%) + 압력(29.8%) = 64.0% 지배</strong></span>
+                                    <span class="context-tag">전체 공정능력(Cpk): <strong style="color:var(--color-normal);">1.33 (4σ 안정)</strong></span>
+                                </div>
                             </div>
-                            <div id="featureParetoChartContainer" class="svg-chart-wrap" style="min-height: 220px;">
-                                <!-- JS 동적 렌더링 -->
+
+                            <!-- 대시보드 상단 요약 KPI 카드 4선 (클릭 시 하단 상세 패널 연동) -->
+                            <div class="feature-kpi-strip">
+                                <div class="kpi-card" style="padding:10px 12px; cursor:pointer;" onclick="window.selectFeatureForDetail && window.selectFeatureForDetail(0)">
+                                    <div class="kpi-meta">
+                                        <div class="kpi-label">1위 통제인자 · 온도 편차</div>
+                                        <div class="kpi-val" style="color:#00e5ff;">34.2%</div>
+                                    </div>
+                                    <span class="kpi-delta warn">민감도 계수 0.35 (최상위)</span>
+                                </div>
+                                <div class="kpi-card" style="padding:10px 12px; cursor:pointer;" onclick="window.selectFeatureForDetail && window.selectFeatureForDetail(1)">
+                                    <div class="kpi-meta">
+                                        <div class="kpi-label">2위 통제인자 · 압력 편차</div>
+                                        <div class="kpi-val" style="color:#38bdf8;">29.8%</div>
+                                    </div>
+                                    <span class="kpi-delta warn">민감도 계수 0.30 (상호작용)</span>
+                                </div>
+                                <div class="kpi-card" style="padding:10px 12px; cursor:pointer;" onclick="window.selectFeatureForDetail && window.selectFeatureForDetail(2)">
+                                    <div class="kpi-meta">
+                                        <div class="kpi-label">3위 에너지인자 · RF 플라즈마</div>
+                                        <div class="kpi-val" style="color:#a855f7;">18.5%</div>
+                                    </div>
+                                    <span class="kpi-delta good">전력 민감도 0.25 (제어가능)</span>
+                                </div>
+                                <div class="kpi-card" style="padding:10px 12px; cursor:pointer;" onclick="window.selectFeatureForDetail && window.selectFeatureForDetail(3)">
+                                    <div class="kpi-meta">
+                                        <div class="kpi-label">4위 기계인자 · 설비 진동 RMS</div>
+                                        <div class="kpi-val" style="color:#f59e0b;">8.2%</div>
+                                    </div>
+                                    <span class="kpi-delta good">베어링 열화 상관 (PM 연계)</span>
+                                </div>
+                            </div>
+
+                            <!-- 대시보드 2x2 멀티 차트 그리드 (4대 차트 유형) -->
+                            <div class="feature-dashboard-grid">
+                                
+                                <!-- [유형 A] 6각 공정 민감도 레이더 차트 -->
+                                <div class="dashboard-chart-card">
+                                    <div class="chart-card-header">
+                                        <span class="chart-card-title">🕸️ [유형 A] 6대 공정 변수 다차원 레이더 차트 (운영치 vs AI 최적 밴드)</span>
+                                        <span style="font-size:10px; color:var(--text-muted);">6각 스파이더 분석</span>
+                                    </div>
+                                    <div id="featureRadarChartContainer" class="svg-chart-wrap" style="min-height:260px;">
+                                        <!-- JS 동적 렌더링 -->
+                                    </div>
+                                    <div class="chart-sub-legend">
+                                        <span class="chart-legend-badge"><span class="chart-legend-dot" style="background:#00e5ff;"></span>현재 운전 계측 프로파일</span>
+                                        <span class="chart-legend-badge"><span class="chart-legend-dot" style="background:#a855f7; border:1px dashed #fff;"></span>AI 추천 최적 안전 밴드</span>
+                                    </div>
+                                </div>
+
+                                <!-- [유형 B] SHAP 양방향 특성 기여도 & 민감도 워터폴 차트 -->
+                                <div class="dashboard-chart-card">
+                                    <div class="chart-card-header">
+                                        <span class="chart-card-title">🔀 [유형 B] SHAP 양방향 기여도 (불량 유발 촉발 vs 품질 안정화 요인)</span>
+                                        <span style="font-size:10px; color:var(--text-muted);">좌우 분기형 워터폴</span>
+                                    </div>
+                                    <div id="featureDivergingChartContainer" class="svg-chart-wrap" style="min-height:260px;">
+                                        <!-- JS 동적 렌더링 -->
+                                    </div>
+                                    <div class="chart-sub-legend">
+                                        <span class="chart-legend-badge"><span class="chart-legend-dot" style="background:#ef4444;"></span>품질 편차 증가 요인 (+)</span>
+                                        <span class="chart-legend-badge"><span class="chart-legend-dot" style="background:#00e5ff;"></span>공정 안정화 기여 요인 (-)</span>
+                                    </div>
+                                </div>
+
+                                <!-- [유형 C] 공정 인자 간 상호작용 상관 매트릭스 히트맵 -->
+                                <div class="dashboard-chart-card">
+                                    <div class="chart-card-header">
+                                        <span class="chart-card-title">🔲 [유형 C] 6x6 인자 간 상호작용 상관 매트릭스 (Pearson Correlation Heatmap)</span>
+                                        <span style="font-size:10px; color:var(--text-muted);">교호작용 매트릭스</span>
+                                    </div>
+                                    <div id="featureHeatmapChartContainer" class="svg-chart-wrap" style="min-height:260px;">
+                                        <!-- JS 동적 렌더링 -->
+                                    </div>
+                                    <div class="chart-sub-legend">
+                                        <span class="chart-legend-badge"><span class="chart-legend-dot" style="background:#00e5ff;"></span>강한 양의 상관 (+0.5~+1.0)</span>
+                                        <span class="chart-legend-badge"><span class="chart-legend-dot" style="background:#1e293b;"></span>독립 (0.0)</span>
+                                        <span class="chart-legend-badge"><span class="chart-legend-dot" style="background:#ec4899;"></span>음의 상관 (-0.5~-1.0)</span>
+                                    </div>
+                                </div>
+
+                                <!-- [유형 D] 핵심 4대 인자 안전 운전 마진 & 공정 능력 (Cpk) 게이지 -->
+                                <div class="dashboard-chart-card">
+                                    <div class="chart-card-header">
+                                        <span class="chart-card-title">🎯 [유형 D] 핵심 4대 인자 안전 마진 & 공정능력(Cpk) 스피도미터</span>
+                                        <span style="font-size:10px; color:var(--text-muted);">실시간 계측 게이지</span>
+                                    </div>
+                                    <div id="featureGaugesContainer" class="svg-chart-wrap" style="min-height:260px;">
+                                        <!-- JS 동적 렌더링 -->
+                                    </div>
+                                    <div class="chart-sub-legend">
+                                        <span class="chart-legend-badge"><span class="chart-legend-dot" style="background:#10b981;"></span>안전 영역 (Safe)</span>
+                                        <span class="chart-legend-badge"><span class="chart-legend-dot" style="background:#f59e0b;"></span>주의 영역 (Warning)</span>
+                                        <span class="chart-legend-badge"><span class="chart-legend-dot" style="background:#ef4444;"></span>이탈 영역 (Out-of-Spec)</span>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <!-- [하단] 선택 변수 정밀 진단 & 엔지니어링 조치 인터랙티브 패널 -->
+                            <div id="featureDetailCard" class="feature-detail-interactive-card">
+                                <!-- JS 동적 렌더링 (인자 클릭 시 갱신) -->
                             </div>
                         </div>
 

@@ -744,8 +744,12 @@
         // [상용화 시각화 그래프 2] 4대 모델 다차원 지표 비교 차트
         renderModelComparisonChart();
 
-        // [상용화 시각화 그래프 3] 6대 공정 변수 특성 중요도 및 파레토 곡선
-        renderFeatureParetoChart();
+        // [공정변수 영향도 종합 대시보드 4종 차트 렌더링]
+        renderFeatureRadarChart();
+        renderFeatureDivergingChart();
+        renderFeatureHeatmapChart();
+        renderFeatureGauges();
+        selectFeatureForDetail(0);
     }
 
     // [그래프 1] 실측치 vs AI 앙상블 예측치 산포도 플롯 (SVG)
@@ -924,84 +928,394 @@
         `;
     }
 
-    // [그래프 3] 6대 핵심 공정 변수 특성 중요도 & 파레토 누적 곡선 차트 (SVG)
-    function renderFeatureParetoChart() {
-        const container = document.getElementById('featureParetoChartContainer');
-        if (!container || !state.modelMetrics || !state.modelMetrics.feature_importances) return;
+    // ==========================================================================
+    // [공정변수 영향도 & 민감도 분석 종합 대시보드 4대 차트 구현]
+    // ==========================================================================
 
-        const feats = state.modelMetrics.feature_importances;
-        const w = 1000, h = 210;
-        const x0 = 210, y0 = 20, pw = 740, ph = 160;
-        const rowH = ph / feats.length;
+    // [유형 A] 6대 공정 변수 다차원 레이더 차트 (SVG)
+    function renderFeatureRadarChart() {
+        const container = document.getElementById('featureRadarChartContainer');
+        if (!container) return;
 
-        let cum = 0;
-        const cumPoints = [];
-        let barsHtml = '';
+        const w = 480, h = 260, cx = 240, cy = 130, R = 85;
+        const labels = ['온도 편차', '압력 편차', 'RF 전력', '진동 RMS', '가스 유량', '소비 전력'];
+        const curVals = [86, 78, 64, 42, 35, 28]; // 현재 운전치 (0~100)
+        const optVals = [45, 40, 48, 30, 30, 25]; // AI 권장 밴드 (0~100)
 
-        feats.forEach((f, idx) => {
-            const barW = (f.importance / 0.40) * (pw * 0.55);
-            const by = y0 + idx * rowH + 4;
-            const barHeight = 15;
-
-            cum += f.importance * 100;
-            const cumX = x0 + (cum / 100) * pw;
-            const cumY = by + barHeight / 2;
-            cumPoints.push({ x: cumX, y: cumY, val: cum });
-
-            barsHtml += `
-                <!-- 특성 라벨 -->
-                <text x="${x0 - 12}" y="${by + 11}" fill="var(--text-secondary)" font-size="11" font-weight="600" text-anchor="end">${f.name}</text>
-                
-                <!-- 개별 특성 중요도 막대 -->
-                <rect x="${x0}" y="${by}" width="${barW.toFixed(1)}" height="${barHeight}" rx="4" fill="url(#featGradient)" opacity="0.9" />
-                <text x="${(x0 + barW + 8).toFixed(1)}" y="${by + 11}" fill="var(--text-accent)" font-size="10" font-weight="700" font-family="var(--font-mono)">${(f.importance * 100).toFixed(1)}%</text>
+        // 5단계 다각형 동심 격자 (20%, 40%, 60%, 80%, 100%)
+        let gridPolygons = '';
+        [0.2, 0.4, 0.6, 0.8, 1.0].forEach(scale => {
+            const r = R * scale;
+            const pts = [];
+            for (let i = 0; i < 6; i++) {
+                const th = -Math.PI / 2 + i * (Math.PI / 3);
+                pts.push(`${(cx + Math.cos(th) * r).toFixed(1)},${(cy + Math.sin(th) * r).toFixed(1)}`);
+            }
+            gridPolygons += `
+                <polygon points="${pts.join(' ')}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-dasharray="2,2" />
+                <text x="${cx + 4}" y="${(cy - r + 8).toFixed(1)}" fill="var(--text-secondary)" font-size="8" font-family="var(--font-mono)">${(scale * 100).toFixed(0)}%</text>
             `;
         });
 
-        // 파레토 누적 곡선 폴리라인
-        const polyPoints = cumPoints.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-        let paretoDots = '';
-        cumPoints.forEach((p, i) => {
-            const isHighlight = i === 1; // 상위 2대 인자 64% 변곡점
-            paretoDots += `
-                <circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${isHighlight ? '6' : '4'}" fill="${isHighlight ? '#ec4899' : '#a855f7'}" stroke="#ffffff" stroke-width="${isHighlight ? '2' : '1'}" />
-                <text x="${p.x.toFixed(1)}" y="${(p.y - 8).toFixed(1)}" fill="${isHighlight ? '#ec4899' : 'var(--text-secondary)'}" font-size="${isHighlight ? '11' : '9'}" font-weight="${isHighlight ? '800' : '600'}" text-anchor="middle" font-family="var(--font-mono)">누적 ${p.val.toFixed(1)}%</text>
+        // 6개 축선 및 라벨
+        let axisLines = '';
+        for (let i = 0; i < 6; i++) {
+            const th = -Math.PI / 2 + i * (Math.PI / 3);
+            const ax = cx + Math.cos(th) * R;
+            const ay = cy + Math.sin(th) * R;
+            const lx = cx + Math.cos(th) * (R + 18);
+            const ly = cy + Math.sin(th) * (R + 18);
+
+            axisLines += `
+                <line x1="${cx}" y1="${cy}" x2="${ax.toFixed(1)}" y2="${ay.toFixed(1)}" stroke="rgba(255,255,255,0.15)" stroke-width="1" />
+                <text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" fill="var(--text-accent)" font-size="10" font-weight="700" text-anchor="middle">${labels[i]}</text>
+            `;
+        }
+
+        // 현재 운전치 폴리곤
+        const curPts = [];
+        let curDots = '';
+        curVals.forEach((v, i) => {
+            const th = -Math.PI / 2 + i * (Math.PI / 3);
+            const r = R * (v / 100);
+            const px = cx + Math.cos(th) * r;
+            const py = cy + Math.sin(th) * r;
+            curPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+            curDots += `
+                <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4" fill="#00e5ff" stroke="#ffffff" stroke-width="1.5" />
+                <text x="${px.toFixed(1)}" y="${(py - 6).toFixed(1)}" fill="#00e5ff" font-size="9" font-weight="800" font-family="var(--font-mono)" text-anchor="middle">${v}%</text>
+            `;
+        });
+
+        // AI 권장 최적 밴드 폴리곤
+        const optPts = [];
+        optVals.forEach((v, i) => {
+            const th = -Math.PI / 2 + i * (Math.PI / 3);
+            const r = R * (v / 100);
+            const px = cx + Math.cos(th) * r;
+            const py = cy + Math.sin(th) * r;
+            optPts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+        });
+
+        container.innerHTML = `
+            <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+                ${gridPolygons}
+                ${axisLines}
+
+                <!-- AI 권장 최적 밴드 (보라 점선) -->
+                <polygon points="${optPts.join(' ')}" fill="rgba(168, 85, 247, 0.15)" stroke="#a855f7" stroke-width="1.8" stroke-dasharray="4,4" />
+
+                <!-- 현재 계측 프로파일 (시안 발광) -->
+                <polygon points="${curPts.join(' ')}" fill="rgba(0, 229, 255, 0.22)" stroke="#00e5ff" stroke-width="2.2" />
+                ${curDots}
+            </svg>
+        `;
+    }
+
+    // [유형 B] SHAP 양방향 특성 기여도 워터폴 분기 차트 (SVG)
+    function renderFeatureDivergingChart() {
+        const container = document.getElementById('featureDivergingChartContainer');
+        if (!container) return;
+
+        const w = 480, h = 260, x0 = 230, y0 = 36, pw = 175, ph = 195;
+        const maxImpact = 0.40;
+
+        const items = [
+            { name: '공정 온도 편차', val: 0.342, dir: 'pos', color: '#ef4444', desc: '과열 시 박막 급격한 두께 불균일 촉발' },
+            { name: '챔버 압력 편차', val: 0.298, dir: 'pos', color: '#f97316', desc: '차압 불안정 시 식각 테이퍼 불량 촉발' },
+            { name: 'RF 플라즈마 전력', val: 0.185, dir: 'pos', color: '#eab308', desc: '과출력 시 플라즈마 아킹 및 표면 데미지' },
+            { name: '소비 전력 변동량', val: 0.039, dir: 'pos', color: '#94a3b8', desc: '공정 피크 부하 변동' },
+            { name: '공정 가스 유량', val: -0.054, dir: 'neg', color: '#06b6d4', desc: '질량유량 정밀 제어 시 균일도 향상 기여' },
+            { name: '설비 진동 RMS', val: -0.082, dir: 'neg', color: '#10b981', desc: '진동 댐핑 안정화 시 선폭(CD) 정밀도 개선' }
+        ];
+
+        const rowH = ph / items.length;
+        let rowsHtml = '';
+
+        items.forEach((item, idx) => {
+            const by = y0 + idx * rowH + 4;
+            const barHeight = 16;
+            const barLen = (Math.abs(item.val) / maxImpact) * pw;
+
+            if (item.dir === 'pos') {
+                rowsHtml += `
+                    <!-- 우측 막대 (양의 영향: 불량 촉발) -->
+                    <text x="${x0 - 10}" y="${by + 12}" fill="var(--text-primary)" font-size="11" font-weight="600" text-anchor="end">${item.name}</text>
+                    <rect x="${x0}" y="${by}" width="${barLen.toFixed(1)}" height="${barHeight}" rx="3" fill="${item.color}" opacity="0.9" />
+                    <text x="${(x0 + barLen + 6).toFixed(1)}" y="${by + 12}" fill="${item.color}" font-size="10" font-weight="700" font-family="var(--font-mono)">+${item.val.toFixed(3)}</text>
+                `;
+            } else {
+                rowsHtml += `
+                    <!-- 좌측 막대 (음의 영향: 안정화 기여) -->
+                    <text x="${x0 + 10}" y="${by + 12}" fill="var(--text-primary)" font-size="11" font-weight="600" text-anchor="start">${item.name}</text>
+                    <rect x="${(x0 - barLen).toFixed(1)}" y="${by}" width="${barLen.toFixed(1)}" height="${barHeight}" rx="3" fill="${item.color}" opacity="0.9" />
+                    <text x="${(x0 - barLen - 6).toFixed(1)}" y="${by + 12}" fill="${item.color}" font-size="10" font-weight="700" font-family="var(--font-mono)" text-anchor="end">${item.val.toFixed(3)}</text>
+                `;
+            }
+        });
+
+        container.innerHTML = `
+            <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+                <!-- 상단 방향 지시 헤더 -->
+                <text x="${x0 - 90}" y="20" fill="#00e5ff" font-size="10" font-weight="700" text-anchor="middle">◀ 공정 안정화 기여 (-)</text>
+                <text x="${x0 + 90}" y="20" fill="#ef4444" font-size="10" font-weight="700" text-anchor="middle">불량 위험 촉발 (+) ▶</text>
+
+                <!-- 좌우 그리드 가이드라인 -->
+                <line x1="${x0 - pw * 0.5}" y1="${y0}" x2="${x0 - pw * 0.5}" y2="${y0 + ph}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,2" />
+                <line x1="${x0 + pw * 0.5}" y1="${y0}" x2="${x0 + pw * 0.5}" y2="${y0 + ph}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,2" />
+                <line x1="${x0 + pw}" y1="${y0}" x2="${x0 + pw}" y2="${y0 + ph}" stroke="rgba(255,255,255,0.06)" stroke-dasharray="2,2" />
+
+                <!-- 0점 중심 분기선 -->
+                <line x1="${x0}" y1="${y0 - 8}" x2="${x0}" y2="${y0 + ph + 8}" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" />
+                <text x="${x0}" y="${y0 + ph + 18}" fill="var(--text-secondary)" font-size="9" text-anchor="middle" font-family="var(--font-mono)">0.0 (영향 기준점)</text>
+
+                ${rowsHtml}
+            </svg>
+        `;
+    }
+
+    // [유형 C] 6x6 공정 인자 간 상호작용 상관 매트릭스 히트맵 (SVG)
+    function renderFeatureHeatmapChart() {
+        const container = document.getElementById('featureHeatmapChartContainer');
+        if (!container) return;
+
+        const w = 480, h = 260, x0 = 80, y0 = 36, cellSize = 30, gap = 2;
+        const labels = ['온도', '압력', 'RF전력', '진동', '가스', '전력'];
+        const matrix = [
+            [1.00,  0.72,  0.58,  0.24,  0.31,  0.42],
+            [0.72,  1.00,  0.46,  0.18,  0.64,  0.35],
+            [0.58,  0.46,  1.00,  0.41,  0.28,  0.84],
+            [0.24,  0.18,  0.41,  1.00, -0.12,  0.33],
+            [0.31,  0.64,  0.28, -0.12,  1.00,  0.21],
+            [0.42,  0.35,  0.84,  0.33,  0.21,  1.00]
+        ];
+
+        let cellsHtml = '';
+        // 컬럼 헤더 라벨
+        labels.forEach((lb, j) => {
+            const hx = x0 + j * (cellSize + gap) + cellSize / 2;
+            cellsHtml += `<text x="${hx.toFixed(1)}" y="${y0 - 8}" fill="var(--text-accent)" font-size="10" font-weight="700" text-anchor="middle">${lb}</text>`;
+        });
+
+        // 행 및 셀 렌더링
+        matrix.forEach((row, i) => {
+            const ry = y0 + i * (cellSize + gap);
+            // 행 라벨
+            cellsHtml += `<text x="${x0 - 8}" y="${(ry + cellSize / 2 + 4).toFixed(1)}" fill="var(--text-accent)" font-size="10" font-weight="700" text-anchor="end">${labels[i]}</text>`;
+
+            row.forEach((val, j) => {
+                const rx = x0 + j * (cellSize + gap);
+                let bg, textColor = '#fff';
+
+                if (i === j) {
+                    bg = 'rgba(0, 229, 255, 0.45)';
+                } else if (val >= 0.70) {
+                    bg = 'rgba(236, 72, 153, 0.65)'; // 강한 상호작용 하이라이트!
+                } else if (val >= 0.45) {
+                    bg = 'rgba(2, 132, 199, 0.45)';
+                } else if (val >= 0.15) {
+                    bg = 'rgba(51, 65, 85, 0.6)';
+                    textColor = 'var(--text-secondary)';
+                } else {
+                    bg = 'rgba(124, 58, 237, 0.35)'; // 음의 상관
+                }
+
+                const isHighlight = (i === 0 && j === 1) || (i === 1 && j === 0) || (i === 2 && j === 5) || (i === 5 && j === 2);
+                const strokeAttr = isHighlight ? 'stroke="#ec4899" stroke-width="1.8"' : 'stroke="rgba(255,255,255,0.05)" stroke-width="0.5"';
+
+                cellsHtml += `
+                    <rect x="${rx}" y="${ry}" width="${cellSize}" height="${cellSize}" rx="4" fill="${bg}" ${strokeAttr} />
+                    <text x="${rx + cellSize / 2}" y="${ry + cellSize / 2 + 4}" fill="${textColor}" font-size="9" font-weight="${isHighlight ? '800' : '600'}" font-family="var(--font-mono)" text-anchor="middle">${val.toFixed(2)}</text>
+                `;
+            });
+        });
+
+        container.innerHTML = `
+            <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+                ${cellsHtml}
+
+                <!-- 우측 상호작용 설명 박스 -->
+                <g transform="translate(290, 42)">
+                    <rect x="0" y="0" width="180" height="70" rx="6" fill="rgba(236, 72, 153, 0.12)" stroke="#ec4899" stroke-width="1" />
+                    <text x="10" y="20" fill="#f472b6" font-size="11" font-weight="800">🔥 핵심 상호작용 (CCP)</text>
+                    <text x="10" y="38" fill="var(--text-primary)" font-size="10">• 온도 x 압력 (+0.72 강연동)</text>
+                    <text x="10" y="54" fill="var(--text-secondary)" font-size="10">• RF전력 x 소비전력 (+0.84)</text>
+                </g>
+
+                <g transform="translate(290, 126)">
+                    <rect x="0" y="0" width="180" height="95" rx="6" fill="var(--bg-surface)" stroke="var(--border-color)" stroke-width="1" />
+                    <text x="10" y="20" fill="var(--text-accent)" font-size="10" font-weight="700">💡 엔지니어링 해석 요약</text>
+                    <text x="10" y="38" fill="var(--text-secondary)" font-size="9">온도 상승 시 챔버 열팽창으로</text>
+                    <text x="10" y="52" fill="var(--text-secondary)" font-size="9">압력이 동반 급등하여 두 인자가</text>
+                    <text x="10" y="66" fill="var(--text-secondary)" font-size="9">품질 편차의 64%를 시너지 유발</text>
+                    <text x="10" y="82" fill="#00e5ff" font-size="9" font-weight="700">➔ 다변량 동시 제어(MPC) 필수</text>
+                </g>
+            </svg>
+        `;
+    }
+
+    // [유형 D] 핵심 4대 인자 안전 운전 마진 & 공정 능력 (Cpk) 스피도미터 게이지 (SVG)
+    function renderFeatureGauges() {
+        const container = document.getElementById('featureGaugesContainer');
+        if (!container) return;
+
+        const w = 480, h = 260;
+        const dials = [
+            { name: '공정 온도 편차', val: '401.5 °C', delta: '+1.5°C 편차', cpk: '1.33', grade: '4σ 우수', pct: 68, cx: 120, cy: 72 },
+            { name: '챔버 압력 편차', val: '2.52 mTorr', delta: '+2.5% 초과', cpk: '1.18', grade: '주의 관찰', pct: 78, cx: 360, cy: 72 },
+            { name: 'RF 플라즈마 전력', val: '2,515 W', delta: '+15W 편차', cpk: '1.45', grade: '최우수 안착', pct: 45, cx: 120, cy: 190 },
+            { name: '설비 진동 RMS', val: '0.038 g', delta: '정상범위 유지', cpk: '1.25', grade: '양호 관리', pct: 52, cx: 360, cy: 190 }
+        ];
+
+        let gaugesHtml = '';
+        dials.forEach(d => {
+            const R = 42;
+            // 각도: -Math.PI(180도, 좌)에서 0(360도, 우)까지
+            const needleAngle = -Math.PI + (d.pct / 100) * Math.PI;
+            const nx = d.cx + Math.cos(needleAngle) * (R - 8);
+            const ny = d.cy + Math.sin(needleAngle) * (R - 8);
+
+            const isWarn = d.pct > 75;
+
+            gaugesHtml += `
+                <!-- 반원 게이지 트랙 -->
+                <!-- 녹색 안전 구간 (0~60%) -->
+                <path d="M ${d.cx - R} ${d.cy} A ${R} ${R} 0 0 1 ${(d.cx + Math.cos(-Math.PI * 0.4) * R).toFixed(1)} ${(d.cy + Math.sin(-Math.PI * 0.4) * R).toFixed(1)}" fill="none" stroke="#10b981" stroke-width="6" opacity="0.8" />
+                <!-- 황색 주의 구간 (60~85%) -->
+                <path d="M ${(d.cx + Math.cos(-Math.PI * 0.4) * R).toFixed(1)} ${(d.cy + Math.sin(-Math.PI * 0.4) * R).toFixed(1)} A ${R} ${R} 0 0 1 ${(d.cx + Math.cos(-Math.PI * 0.15) * R).toFixed(1)} ${(d.cy + Math.sin(-Math.PI * 0.15) * R).toFixed(1)}" fill="none" stroke="#f59e0b" stroke-width="6" opacity="0.8" />
+                <!-- 적색 위험 구간 (85~100%) -->
+                <path d="M ${(d.cx + Math.cos(-Math.PI * 0.15) * R).toFixed(1)} ${(d.cy + Math.sin(-Math.PI * 0.15) * R).toFixed(1)} A ${R} ${R} 0 0 1 ${d.cx + R} ${d.cy}" fill="none" stroke="#ef4444" stroke-width="6" opacity="0.8" />
+
+                <!-- 지침 바늘 (Needle) -->
+                <line x1="${d.cx}" y1="${d.cy}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="${isWarn ? '#ef4444' : '#00e5ff'}" stroke-width="2.5" stroke-linecap="round" />
+                <circle cx="${d.cx}" cy="${d.cy}" r="4.5" fill="#ffffff" stroke="#05131d" stroke-width="1.5" />
+
+                <!-- 텍스트 정보 -->
+                <text x="${d.cx}" y="${d.cy + 16}" fill="var(--text-primary)" font-size="11" font-weight="700" text-anchor="middle">${d.name}</text>
+                <text x="${d.cx}" y="${d.cy + 30}" fill="${isWarn ? 'var(--color-review)' : 'var(--text-accent)'}" font-size="12" font-weight="800" font-family="var(--font-mono)" text-anchor="middle">${d.val}</text>
+                
+                <!-- Cpk 배지 -->
+                <g transform="translate(${d.cx - 45}, ${d.cy + 34})">
+                    <rect x="0" y="0" width="90" height="15" rx="7.5" fill="${isWarn ? 'rgba(245, 158, 11, 0.15)' : 'rgba(0, 229, 255, 0.15)'}" stroke="${isWarn ? '#f59e0b' : '#00e5ff'}" stroke-width="0.8" />
+                    <text x="45" y="11" fill="${isWarn ? '#f59e0b' : '#00e5ff'}" font-size="9" font-weight="800" font-family="var(--font-mono)" text-anchor="middle">Cpk ${d.cpk} (${d.grade})</text>
+                </g>
             `;
         });
 
         container.innerHTML = `
             <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
-                <defs>
-                    <linearGradient id="featGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stop-color="#00e5ff" />
-                        <stop offset="100%" stop-color="#7c4dff" />
-                    </linearGradient>
-                </defs>
-
-                <!-- 50%, 80%, 100% 누적 기준선 -->
-                <line x1="${x0 + pw * 0.64}" y1="${y0}" x2="${x0 + pw * 0.64}" y2="${y0 + ph}" stroke="#ec4899" stroke-dasharray="3,3" opacity="0.6" />
-                <line x1="${x0 + pw * 0.80}" y1="${y0}" x2="${x0 + pw * 0.80}" y2="${y0 + ph}" stroke="rgba(255,255,255,0.12)" stroke-dasharray="2,2" />
-                <line x1="${x0 + pw}" y1="${y0}" x2="${x0 + pw}" y2="${y0 + ph}" stroke="rgba(255,255,255,0.2)" />
-
-                <text x="${x0 + pw * 0.64}" y="${y0 + ph + 16}" fill="#ec4899" font-size="10" font-weight="700" text-anchor="middle">64.0% 변곡선 (핵심통제점)</text>
-                <text x="${x0 + pw * 0.80}" y="${y0 + ph + 16}" fill="var(--text-secondary)" font-size="9" text-anchor="middle">80% 파레토 라인</text>
-                <text x="${x0 + pw}" y="${y0 + ph + 16}" fill="var(--text-secondary)" font-size="9" text-anchor="middle">100%</text>
-
-                <!-- 막대 및 텍스트 -->
-                ${barsHtml}
-
-                <!-- 누적 꺾은선 곡선 -->
-                <polyline fill="none" stroke="#ec4899" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" points="${polyPoints}" />
-                ${paretoDots}
-
-                <!-- 64% 지배 콜아웃 배지 -->
-                <g transform="translate(${x0 + pw * 0.64 + 10}, 42)">
-                    <rect x="0" y="0" width="220" height="24" rx="4" fill="rgba(236, 72, 153, 0.15)" stroke="#ec4899" stroke-width="1.2" />
-                    <text x="110" y="16" fill="#f472b6" font-size="10" font-weight="800" text-anchor="middle">온도+압력 2대 인자 = 전체 품질 64.0% 지배</text>
-                </g>
+                ${gaugesHtml}
             </svg>
         `;
     }
+
+    // [하단] 선택 변수 정밀 진단 & 엔지니어링 조치 인터랙티브 패널
+    const featureDetailProfiles = [
+        {
+            name: '공정 온도 편차 (Temperature Deviation)',
+            rank: '1위 핵심 통제점 (CCP)',
+            importance: '34.2%',
+            sensor: '고정밀 백금 측온저항체 (Pt100 RTD 4선식) · 표면파 통신 10ms 주기',
+            window: '목표 400.0 °C (허용 관리 공차: ±1.5 °C)',
+            cpk: '1.33 (4-Sigma 공정 능력 지수 확보)',
+            physics: '온도 과열 시 증착 전구체 가스의 열분해 반응 속도가 4.2% 급증하여 박막 결정립 크기 불균일 및 산화막 두께 편차를 직접 촉발합니다.',
+            actions: [
+                '냉각수 순환 바이패스 밸브(V-102) 개도율을 45%에서 50%로 미세 상향 조정',
+                '챔버 3존 멀티채널 히터의 PID 피드백 게인 중 비례대(P-gain) 5% 하향 보정',
+                '열화상 적외선 스캔을 통한 챔버 외벽 핫스팟(Hot-spot) 유무 확인'
+            ]
+        },
+        {
+            name: '챔버 진공 압력 편차 (Chamber Pressure Deviation)',
+            rank: '2위 핵심 통제점 (CCP)',
+            importance: '29.8%',
+            sensor: '정전용량식 다이어프램 게이지 (Capacitance Manometer) · 0.1 mTorr 분해능',
+            window: '목표 2.50 mTorr (허용 관리 공차: ±0.05 mTorr)',
+            cpk: '1.18 (주의 관찰 필요 레벨)',
+            physics: '진공 차압 변동 시 플라즈마 시스(Sheath) 두께가 진동하여 웨이퍼 입사 이온의 직진 궤적이 왜곡되며, 식각 단차 테이퍼 각도 불량을 유발합니다.',
+            actions: [
+                '진공 드로틀 밸브(Pendulum Valve) 서보 모터 엔코더 영점 캘리브레이션',
+                '하부 드라이 진공 펌프 배기 라인 파티클 트랩 오염도 점검 및 질소 퍼지',
+                '게이트 밸브 밀폐용 불소 고무(Viton) O링 미세 리크(Leak) He 디텍터 측정'
+            ]
+        },
+        {
+            name: 'RF 플라즈마 전력 (RF Plasma Power)',
+            rank: '3위 에너지 인자',
+            importance: '18.5%',
+            sensor: '고주파 13.56 MHz VI 프로브 및 매칭 박스 반사파 디텍터',
+            window: '목표 2,500 W (허용 관리 공차: ±25 W)',
+            cpk: '1.45 (최우수 제어 수준)',
+            physics: 'RF 전력 불균형 시 전극 에지부에 전계가 집중되어 플라즈마 아킹(Arcing)이 발생하며, 기판 표면의 미세 소자 파괴 위험이 증가합니다.',
+            actions: [
+                'RF 매칭 박스 자동 가변 콘덴서(VC1/VC2) 튜닝 모터 응답 속도 확인',
+                'RF 전송 동축 케이블 커넥터 접촉 저항 및 절연 내압 측정',
+                '플라즈마 방전 전극 표면 폴리머 잔류물 드라이아이스 세정'
+            ]
+        },
+        {
+            name: '설비 진동 실효치 (Vibration RMS)',
+            rank: '4위 기계적 열화 인자',
+            importance: '8.2%',
+            sensor: '3축 초소형 피에조 가속도 진동 센서 (0~10 kHz 고주파 대역)',
+            window: '정상 기준: 0.050 g 이하 (현재 실측치: 0.038 g)',
+            cpk: '1.25 (양호 관리 수준)',
+            physics: '터보 펌프 및 웨이퍼 이송 로봇 베어링 진동이 챔버로 전달될 경우 노광 스캐너의 정밀 포토 레지스트 선폭(CD) 임계 치수에 미세 지터(Jitter)가 발생합니다.',
+            actions: [
+                '터보 분자 펌프(TMP) 마그네틱 베어링 1X/2X 고조파 진동 스펙트럼 분석',
+                '설비 챔버 마운트 에어 스프링 제진대(Pneumatic Damper) 압력 점검',
+                '베어링 윤활 그리스 교체 주기 및 고착 여부 확인'
+            ]
+        }
+    ];
+
+    function selectFeatureForDetail(idx) {
+        const card = document.getElementById('featureDetailCard');
+        if (!card) return;
+
+        const p = featureDetailProfiles[idx] || featureDetailProfiles[0];
+        card.innerHTML = `
+            <div class="feature-detail-header">
+                <div>
+                    <span class="context-tag" style="background:var(--bus-sensor); color:#05131d; font-weight:800; border:none; margin-right:8px;">${p.rank}</span>
+                    <strong style="font-size:15px; color:var(--text-primary);">${p.name}</strong>
+                    <span style="font-size:12px; color:var(--text-accent); margin-left:8px; font-weight:700;">중요도 기여율: ${p.importance}</span>
+                </div>
+                <span class="kpi-delta good" style="font-size:11px;">실시간 센서 텔레메트리 연동 중</span>
+            </div>
+
+            <!-- 파라미터 4대 핵심 사양 그리드 -->
+            <div class="feature-detail-param-grid">
+                <div class="param-box">
+                    <div class="param-key">계측 센서 및 통신 버스</div>
+                    <div class="param-val" style="font-size:12px;">${p.sensor}</div>
+                </div>
+                <div class="param-box">
+                    <div class="param-key">허용 관리 공차 윈도우</div>
+                    <div class="param-val" style="font-size:12px; color:var(--text-accent);">${p.window}</div>
+                </div>
+                <div class="param-box">
+                    <div class="param-key">공정 능력 지수 (Cpk)</div>
+                    <div class="param-val" style="font-size:12px; color:var(--color-normal);">${p.cpk}</div>
+                </div>
+                <div class="param-box">
+                    <div class="param-key">품질 영향도 분석</div>
+                    <div class="param-val" style="font-size:12px;">${p.physics.slice(0, 32)}...</div>
+                </div>
+            </div>
+
+            <!-- 불량 유발 메커니즘 및 엔지니어링 조치 -->
+            <div style="background:var(--bg-base); padding:10px 12px; border-radius:6px; border:1px solid var(--border-color); font-size:12px;">
+                <div style="color:var(--text-accent); font-weight:700; margin-bottom:4px;">🔬 불량 발생 물리적 메커니즘:</div>
+                <div style="color:var(--text-secondary); line-height:1.5; margin-bottom:8px;">${p.physics}</div>
+                <div style="color:var(--bus-sensor); font-weight:700; margin-bottom:4px;">🛠️ 권고 엔지니어링 즉시 조치 사항:</div>
+                <ul style="margin:0; padding-left:18px; color:var(--text-primary); line-height:1.6;">
+                    ${p.actions.map(a => `<li>${a}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    }
+    window.selectFeatureForDetail = selectFeatureForDetail;
 
     // 툴팁 노출 및 숨김 함수
     function showScatterTooltip(e, text) {

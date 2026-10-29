@@ -1164,6 +1164,93 @@ body {
     color: var(--text-primary);
 }
 
+/* 공정변수별 영향도 & 민감도 분석 종합 대시보드 스타일 */
+.feature-kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+@media (max-width: 900px) {
+    .feature-kpi-strip {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.feature-dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+}
+
+@media (max-width: 1050px) {
+    .feature-dashboard-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.dashboard-chart-card {
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.dashboard-chart-card:hover {
+    border-color: var(--border-active);
+    box-shadow: 0 4px 16px rgba(0, 229, 255, 0.15);
+}
+
+.chart-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2px;
+}
+
+.chart-card-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-accent);
+}
+
+.feature-detail-interactive-card {
+    background: var(--bg-surface-elevated);
+    border: 1.5px solid var(--border-active);
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.feature-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.feature-detail-param-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+@media (max-width: 900px) {
+    .feature-detail-param-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
 /* 사용자 역할별 인사이트 스튜디오 탭 바 */
 .role-insight-selector {
     display: flex;
